@@ -88,3 +88,25 @@
   overflows `.Machine$integer.max` at about 2.1e9 cells; the resulting `NA` then
   reached `if (NA)` and aborted with `missing value where TRUE/FALSE needed`.
   The existing test passed doubles and never exercised the integer path.
+* A comparison that aligns no rows is now an error (`daffiz_error_disjoint`)
+  rather than a silent non-comparison. Four cases reached the end of the
+  pipeline without a word: fully disjoint identities, and either input being
+  empty while the other has rows. All four produced a result whose every cell
+  was `x_only` or `y_only`, with `n_compared` of zero, reporting "differences"
+  that were really two unrelated tables. The error carries a bounded sample of
+  the keys on each side, which is what actually identifies the cause -- usually
+  a wrong `by=`, or key values that agree in type but not in format (padded or
+  trimmed codes, a locale or encoding skew).
+* The alignment gate runs *before* the melt. The disjoint case is the one that
+  builds the largest possible cell table -- the outer join yields `n_x + n_y`
+  records, every one of them useless -- so a guard placed after it would be
+  worth nothing.
+* Added `compare_dt(disjoint_keys=)`, `"error"` (default) or `"warn"`, for the
+  batch workflow that legitimately expects some partitions not to overlap.
+  `expect_dt_equal()` inherits the strict default. Two empty inputs remain
+  equal rather than ill-formed and are exempt from the gate; a single aligned
+  row is enough to be a real comparison, so the gate is zero-overlap rather
+  than an arbitrary low-overlap threshold.
+* One identity scan now serves both the alignment gate and the duplicate
+  policy, instead of the counts being built twice.
+* Removed `duplicate_groups()`, which was defined but never called.

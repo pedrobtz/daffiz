@@ -66,7 +66,7 @@ its own file and is independently testable:
 |---|---|
 | `R/daffiz-package.R` | Reserved column names, `.match_type` factor levels, `data.table` awareness |
 | `R/conditions.R` | Subclassed conditions (`daffiz_error_*`, `daffiz_warning_*`) and message formatting |
-| `R/preflight.R` | Gates 1–4, 6–7, 9 — see design plan §4.1 |
+| `R/preflight.R` | Gates 1–4, 6–7, 9–10 (alignment) |
 | `R/resolve-columns.R` | Role resolution and gates 5, 8; `daffiz_row_number()` |
 | `R/duplicates.R` | Duplicate detection and the `pair`/`report`/`error` policies |
 | `R/batching.R` | Transparent measure batching during melt/join construction |
@@ -82,6 +82,14 @@ its own file and is independently testable:
 
 Load-bearing details, each covered by a test:
 
+- **A comparison that aligns nothing is ill-formed, and gate 10 says so before
+  the melt.** Zero overlap means every cell would be `x_only`/`y_only` and
+  `n_compared` would be zero — almost always a wrong `by=` or a key-format
+  skew. It is also the case that builds the largest possible cell table
+  (`n_x + n_y` records), so the gate must precede construction, not follow it.
+  Two empty inputs are exempt: they are equal, not ill-formed. The threshold is
+  zero overlap, never a low-overlap heuristic. `disjoint_keys = "warn"` is the
+  opt-out for batch workflows.
 - **Gate order matters.** A column-set mismatch or a type mismatch must be
   reported *before* duplicate detection or melting, because it usually means
   the output contract changed and a partial numeric comparison would hide that.

@@ -89,10 +89,21 @@ test_that("the size projection counts aligned records, not the larger side", {
   opts <- options(daffiz.max_cells = 6)
   on.exit(options(opts), add = TRUE)
 
-  warning <- tryCatch(compare_dt(x, y), daffiz_warning_size = identity)
+  # Disjoint identities are an error by default (gate 10), so this projection
+  # test has to opt into the comparison it is measuring.
+  warning <- withCallingHandlers(
+    tryCatch(
+      compare_dt(x, y, disjoint_keys = "warn"),
+      daffiz_warning_size = identity
+    ),
+    daffiz_warning_disjoint = function(w) invokeRestart("muffleWarning")
+  )
   expect_s3_class(warning, "daffiz_warning_size")
   expect_equal(warning$projected, 8)
-  expect_equal(nrow(all_cells(suppressWarnings(compare_dt(x, y)))), 8L)
+  expect_equal(
+    nrow(all_cells(suppressWarnings(compare_dt(x, y, disjoint_keys = "warn")))),
+    8L
+  )
 })
 
 test_that("the projection accounts for the duplicate policy", {

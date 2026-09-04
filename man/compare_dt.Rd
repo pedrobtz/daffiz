@@ -13,6 +13,7 @@ compare_dt(
   abs_tol = 0,
   rel_tol = 0,
   duplicate_keys = c("pair", "report", "error"),
+  disjoint_keys = c("error", "warn"),
   x_name = NULL,
   y_name = NULL,
   batch = NULL
@@ -39,6 +40,13 @@ unspecified columns, for example \code{c(.default = 0, amount = 0.01)}.}
 \item{duplicate_keys}{What to do when an identity is duplicated. \code{"pair"}
 sorts deterministically and compares paired rows; \code{"report"} reports the
 ambiguous groups and excludes them from cell comparison; \code{"error"} stops.}
+
+\item{disjoint_keys}{What to do when the inputs align no rows at all, because
+no identity value occurs in both or one input is empty. \code{"error"} (the
+default) stops before any melting, since such a comparison has nothing to
+compare and usually means \verb{by=} is wrong or the key values differ in
+format. \code{"warn"} proceeds and reports every row as \code{x_only} or \code{y_only}.
+Two empty inputs are equal rather than ill-formed, and are exempt.}
 
 \item{x_name, y_name}{Labels used in reports. Default to the argument
 expressions when those are bare symbols, otherwise \code{"x"} and \code{"y"}.}
@@ -75,6 +83,10 @@ changing any match decision.
 The result holds one row per aligned numeric cell, so it has
 \verb{nrow x length(compare)} rows. A warning is issued above
 \code{getOption("daffiz.max_cells")}, which defaults to 1e7.
+
+A comparison that aligns no rows at all is an error by default: every cell
+it could produce would be \code{x_only} or \code{y_only}, and nothing would actually
+be compared. See \code{disjoint_keys}.
 }
 \examples{
 x <- data.frame(id = 1:3, amount = c(1, 2, 3))

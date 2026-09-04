@@ -124,6 +124,32 @@ to the same key. Choose a policy with `duplicate_keys`:
 For paired duplicates, `.row_x` and `.row_y` show exactly which source rows were
 aligned.
 
+## Comparisons that align nothing
+
+If no identity value occurs in both inputs — or one input is empty while the
+other is not — there is nothing to compare: every cell would be `x_only` or
+`y_only`. `compare_dt()` stops before doing any work, and shows the keys:
+
+```r
+baseline  <- data.frame(order_id = c("A001", "A002"), amount = c(10, 20))
+candidate <- data.frame(order_id = c(" A001", " A002"), amount = c(10, 21))
+
+compare_dt(baseline, candidate)
+#> Error: Comparison aligns no rows.
+#>   No identity value appears in both inputs (2 row(s) in `baseline`, 2 in `candidate`).
+#>   Identity: order_id
+#>   only in `baseline`: A001, A002
+#>   only in `candidate`:  A001,  A002
+#>   Check that `by=` names the right columns and that the key values have the same
+#>   format on both sides, or use `by = daffiz_row_number()` to align by position.
+```
+
+The key sample is the diagnosis — here it shows the leading whitespace. Pass
+`disjoint_keys = "warn"` when a partition legitimately has no overlap and you
+want the `x_only`/`y_only` records anyway. Two empty inputs are equal, not
+ill-formed, and are exempt. A single aligned row is a real comparison: the rule
+is zero overlap, not low overlap.
+
 ## Result model
 
 `compare_dt()` returns a `daffiz_comparison`. Start with the bounded report:

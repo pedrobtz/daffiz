@@ -99,3 +99,136 @@ test_that("unusual but legal column names are supported", {
   cmp <- compare_dt(x, y)
   expect_equal(sum(all_cells(cmp)$.match_type == "diff"), 1L)
 })
+
+# Gate 10 -- alignment ---------------------------------------------------------
+
+test_that("fully disjoint identities are an error, not a silent non-comparison", {
+  # Every cell such a comparison could produce is x_only or y_only, so
+  # `n_compared` is zero and the "differences" it reports are just two
+  # unrelated tables. It used to return that result without a word.
+  x <- data.frame(id = 1:4, v = as.double(1:4))
+  y <- data.frame(id = 5:8, v = as.double(1:4))
+
+  err <- tryCatch(compare_dt(x, y), daffiz_error = identity)
+  expect_s3_class(err, "daffiz_error_disjoint")
+  expect_equal(err$by, "id")
+  expect_equal(err$n_row_x, 4L)
+  expect_equal(err$n_row_y, 4L)
+})
+
+test_that("the disjoint error carries the keys needed to debug it", {
+  x <- data.frame(id = c("a", "b"), v = c(1, 2))
+  y <- data.frame(id = c("c", "d"), v = c(1, 2))
+  message <- conditionMessage(tryCatch(compare_dt(x, y), daffiz_error = identity))
+
+  expect_match(message, "No identity value appears in both inputs")
+  expect_match(message, "only in `x`: a, b")
+  expect_match(message, "only in `y`: c, d")
+  # The two remedies that actually fix it.
+  expect_match(message, "by=")
+  expect_match(message, "daffiz_row_number\\(\\)")
+})
+
+test_that("a compound identity samples keys as tuples", {
+  x <- data.frame(g = c("a", "a"), id = 1:2, v = c(1, 2))
+  y <- data.frame(g = c("b", "b"), id = 3:4, v = c(1, 2))
+  message <- conditionMessage(tryCatch(compare_dt(x, y), daffiz_error = identity))
+
+  expect_match(message, "Identity: g, id")
+  expect_match(message, "\\(a, 1\\), \\(a, 2\\)")
+  expect_match(message, "\\(b, 3\\), \\(b, 4\\)")
+})
+
+test_that("an empty input on one side is named as such", {
+  empty <- data.frame(id = integer(), v = numeric())
+  populated <- data.frame(id = 1:3, v = c(1, 2, 3))
+
+  # The message uses the captured argument labels, so it names the caller's own
+  # variables rather than `x` and `y`.
+  x_empty <- tryCatch(compare_dt(empty, populated), daffiz_error = identity)
+  expect_s3_class(x_empty, "daffiz_error_disjoint")
+  expect_match(
+    conditionMessage(x_empty), "`empty` has no rows, while `populated` has 3"
+  )
+  expect_equal(x_empty$n_row_x, 0L)
+  expect_equal(x_empty$n_row_y, 3L)
+
+  y_empty <- tryCatch(compare_dt(populated, empty), daffiz_error = identity)
+  expect_s3_class(y_empty, "daffiz_error_disjoint")
+  expect_match(
+    conditionMessage(y_empty), "`empty` has no rows, while `populated` has 3"
+  )
+  expect_equal(y_empty$n_row_x, 3L)
+  expect_equal(y_empty$n_row_y, 0L)
+
+  # Whichever side is empty, the message says so with explicit labels too.
+  both <- tryCatch(
+    compare_dt(populated, empty, x_name = "before", y_name = "after"),
+    daffiz_error = identity
+  )
+  expect_match(conditionMessage(both), "`after` has no rows, while `before` has 3")
+})
+
+test_that("two empty inputs are equal rather than ill-formed", {
+  # They align no rows either, but that is a correct answer, not a broken
+  # question -- and the plot and accessor paths depend on it working.
+  empty <- data.frame(id = integer(), v = numeric())
+  cmp <- expect_no_condition(compare_dt(empty, empty))
+  expect_true(is_matching(cmp))
+  expect_equal(nrow(all_cells(cmp)), 0L)
+})
+
+test_that("disjoint_keys = 'warn' restores the previous behaviour", {
+  x <- data.frame(id = 1:4, v = as.double(1:4))
+  y <- data.frame(id = 5:8, v = as.double(1:4))
+
+  expect_warning(
+    cmp <- compare_dt(x, y, disjoint_keys = "warn"),
+    class = "daffiz_warning_disjoint"
+  )
+  expect_equal(nrow(all_cells(cmp)), 8L)
+  expect_false(is_matching(cmp))
+  expect_equal(sum(column_summary(cmp)$n_compared), 0L)
+  # The escape hatch must not re-suggest itself.
+  w <- tryCatch(compare_dt(x, y, disjoint_keys = "warn"),
+                daffiz_warning_disjoint = identity)
+  expect_no_match(conditionMessage(w), "Set `disjoint_keys")
+})
+
+test_that("a single aligned row is enough to be a real comparison", {
+  # The gate is zero-overlap, not low-overlap: one shared identity among many
+  # unmatched rows is a legitimate comparison that x_only()/y_only() describe.
+  x <- data.frame(id = 1:50, v = as.double(1:50))
+  y <- data.frame(id = 50:99, v = as.double(1:50))
+
+  cmp <- expect_no_condition(compare_dt(x, y))
+  expect_equal(sum(column_summary(cmp)$n_compared), 1L)
+})
+
+test_that("the gate fires before the melt", {
+  # The disjoint case builds the largest possible cell table, so the guard is
+  # worth nothing if it runs afterwards. A size threshold of zero would warn
+  # first if the melt were reached.
+  x <- data.frame(id = 1:4, v = as.double(1:4))
+  y <- data.frame(id = 5:8, v = as.double(1:4))
+  opts <- options(daffiz.max_cells = 0)
+  on.exit(options(opts), add = TRUE)
+
+  expect_error(
+    expect_no_warning(compare_dt(x, y)),
+    class = "daffiz_error_disjoint"
+  )
+})
+
+test_that("expect_dt_equal inherits the strict default", {
+  x <- data.frame(id = 1:2, v = c(1, 2))
+  y <- data.frame(id = 3:4, v = c(1, 2))
+  expect_error(expect_dt_equal(x, y), class = "daffiz_error_disjoint")
+})
+
+test_that("positional alignment is unaffected when both sides have rows", {
+  x <- data.frame(id = 1:3, v = c(1, 2, 3))
+  y <- data.frame(id = 7:9, v = c(1, 2, 3))
+  cmp <- expect_no_condition(compare_dt(x, y, by = daffiz_row_number()))
+  expect_true(is_matching(cmp))
+})

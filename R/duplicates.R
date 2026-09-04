@@ -14,14 +14,8 @@ identity_counts <- function(wx, wy, by) {
   both
 }
 
-duplicate_groups <- function(wx, wy, by) {
-  counts <- identity_counts(wx, wy, by)
-  counts[n_x > 1L | n_y > 1L]
-}
-
 apply_duplicate_policy <- function(wx, wy, by, compare, policy,
-                                   x_name, y_name) {
-  counts <- identity_counts(wx, wy, by)
+                                   x_name, y_name, counts) {
   info <- counts[n_x > 1L | n_y > 1L]
 
   if (!nrow(info)) {

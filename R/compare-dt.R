@@ -70,6 +70,10 @@ warn_projected_size <- function(n_records, n_measures, x_name, y_name) {
 #' `nrow x length(compare)` rows. A warning is issued above
 #' `getOption("daffiz.max_cells")`, which defaults to 1e7.
 #'
+#' A comparison that aligns no rows at all is an error by default: every cell
+#' it could produce would be `x_only` or `y_only`, and nothing would actually
+#' be compared. See `disjoint_keys`.
+#'
 #' @param x,y Tables to compare. `data.frame`, `data.table` and tibble inputs
 #'   are accepted; neither input is modified.
 #' @param by Identity columns used to align rows. `NULL` (default) infers every
@@ -85,6 +89,12 @@ warn_projected_size <- function(n_records, n_measures, x_name, y_name) {
 #' @param duplicate_keys What to do when an identity is duplicated. `"pair"`
 #'   sorts deterministically and compares paired rows; `"report"` reports the
 #'   ambiguous groups and excludes them from cell comparison; `"error"` stops.
+#' @param disjoint_keys What to do when the inputs align no rows at all, because
+#'   no identity value occurs in both or one input is empty. `"error"` (the
+#'   default) stops before any melting, since such a comparison has nothing to
+#'   compare and usually means `by=` is wrong or the key values differ in
+#'   format. `"warn"` proceeds and reports every row as `x_only` or `y_only`.
+#'   Two empty inputs are equal rather than ill-formed, and are exempt.
 #' @param x_name,y_name Labels used in reports. Default to the argument
 #'   expressions when those are bare symbols, otherwise `"x"` and `"y"`.
 #' @param batch Maximum number of measures melted and joined at once. `NULL`
@@ -106,6 +116,7 @@ compare_dt <- function(x, y,
                        abs_tol = 0,
                        rel_tol = 0,
                        duplicate_keys = c("pair", "report", "error"),
+                       disjoint_keys = c("error", "warn"),
                        x_name = NULL,
                        y_name = NULL,
                        batch = NULL) {
@@ -116,6 +127,7 @@ compare_dt <- function(x, y,
   x_name <- as.character(x_name)[1L]
   y_name <- as.character(y_name)[1L]
   duplicate_keys <- match.arg(duplicate_keys)
+  disjoint_keys <- match.arg(disjoint_keys)
 
   # Step 1 -- gates 1-4.
   kept <- preflight_columns(x, y, exclude, x_name, y_name)
@@ -166,9 +178,18 @@ compare_dt <- function(x, y,
     if (is.integer(wy[[nm]])) set(wy, j = nm, value = as.double(wy[[nm]]))
   }
 
-  # Step 5 -- duplicates.
+  # Step 5 -- one identity scan serves both the alignment gate and the
+  # duplicate policy. Gate 10 runs first: whether the two inputs share any
+  # identity at all is a property of the inputs, independent of what the
+  # duplicate policy later does with the groups they do share. Running it
+  # afterwards would report a table that is disjoint *and* duplicated as a
+  # duplicates problem, which is the less fundamental of the two.
+  counts <- identity_counts(wx, wy, roles$by)
+  preflight_alignment(counts, roles$by, nrow(snap_x), nrow(snap_y),
+                      disjoint_keys, x_name, y_name)
+
   dup <- apply_duplicate_policy(wx, wy, roles$by, roles$compare,
-                                duplicate_keys, x_name, y_name)
+                                duplicate_keys, x_name, y_name, counts)
   wx <- dup$x
   wy <- dup$y
   occ <- if (dup$occurrence) ".occurrence" else character()
@@ -198,7 +219,8 @@ compare_dt <- function(x, y,
       by_inferred = by_inferred, compare_inferred = compare_inferred,
       abs_tol = abs_res, rel_tol = rel_res,
       batch = batch_size,
-      duplicate_keys = duplicate_keys, occurrence = dup$occurrence,
+      duplicate_keys = duplicate_keys, disjoint_keys = disjoint_keys,
+      occurrence = dup$occurrence,
       x_name = x_name, y_name = y_name,
       n_row_x = nrow(snap_x), n_row_y = nrow(snap_y)
     ),

@@ -224,6 +224,90 @@ preflight_types <- function(x, y, by, compare, x_name, y_name) {
   invisible(TRUE)
 }
 
+# Renders a bounded sample of identity values for a diagnostic message. A single
+# identity column shows bare values; a compound one shows tuples, because
+# `a=1, b=2, a=1, b=3` is unreadable once there is more than one key column.
+format_key_sample <- function(groups, by, max_n = 8L) {
+  if (!nrow(groups)) return("<none>")
+  shown <- utils::head(groups, max_n)
+  labels <- if (length(by) == 1L) {
+    as.character(shown[[by]])
+  } else {
+    apply(
+      vapply(by, function(nm) as.character(shown[[nm]]), character(nrow(shown))),
+      1L,
+      function(row) paste0("(", paste(row, collapse = ", "), ")")
+    )
+  }
+  out <- fmt_names(labels, max_n)
+  if (nrow(groups) > max_n) {
+    out <- paste0(out, ", ... (", nrow(groups) - max_n, " more)")
+  }
+  out
+}
+
+# Gate 10. A comparison that aligns no rows at all has nothing to compare: every
+# cell it could produce is `x_only` or `y_only`, `n_compared` is zero, and the
+# result reports "differences" that are really just two unrelated tables. It is
+# almost always a wrong `by=`, or identity values that agree in type but not in
+# format (padded codes, trimmed whitespace, a silent locale or encoding skew).
+#
+# Failing here rather than after the melt matters twice over: the caller gets
+# the key sample they need to debug it, and the disjoint case is exactly the one
+# that builds the largest possible cell table -- the outer join yields
+# `n_x + n_y` records, every one of them useless.
+#
+# Two empty inputs are exempt. They align no rows either, but they are equal,
+# and that is a correct answer rather than an ill-formed question.
+preflight_alignment <- function(counts, by, n_row_x, n_row_y, policy,
+                                x_name, y_name) {
+  if (n_row_x == 0L && n_row_y == 0L) return(invisible(TRUE))
+  if (nrow(counts) && any(counts$n_x > 0L & counts$n_y > 0L)) {
+    return(invisible(TRUE))
+  }
+
+  detail <- if (n_row_x == 0L) {
+    sprintf("`%s` has no rows, while `%s` has %s.",
+            x_name, y_name, format(n_row_y, big.mark = ","))
+  } else if (n_row_y == 0L) {
+    sprintf("`%s` has no rows, while `%s` has %s.",
+            y_name, x_name, format(n_row_x, big.mark = ","))
+  } else {
+    paste0(
+      sprintf(
+        "No identity value appears in both inputs (%s row(s) in `%s`, %s in `%s`).",
+        format(n_row_x, big.mark = ","), x_name,
+        format(n_row_y, big.mark = ","), y_name
+      ),
+      "\n  Identity: ", fmt_names(by),
+      "\n  only in `", x_name, "`: ",
+      format_key_sample(counts[n_y == 0L], by),
+      "\n  only in `", y_name, "`: ",
+      format_key_sample(counts[n_x == 0L], by),
+      "\n  Check that `by=` names the right columns and that the key values ",
+      "have the same\n  format on both sides, or use ",
+      "`by = daffiz_row_number()` to align by position."
+    )
+  }
+
+  message <- paste0("Comparison aligns no rows.\n  ", detail)
+
+  if (identical(policy, "warn")) {
+    # No escape-hatch hint here: the caller already took it.
+    daffiz_warn("daffiz_warning_disjoint",
+                paste0(message, "\n  Every row is reported as x-only or ",
+                       "y-only; no cell is compared."),
+                by = by, n_row_x = n_row_x, n_row_y = n_row_y)
+  } else {
+    daffiz_abort("daffiz_error_disjoint",
+                 paste0(message, "\n  Set `disjoint_keys = \"warn\"` to ",
+                        "compare anyway; every row is then reported as",
+                        "\n  x-only or y-only."),
+                 by = by, n_row_x = n_row_x, n_row_y = n_row_y)
+  }
+  invisible(TRUE)
+}
+
 # Gate 9. Resolves a scalar or `.default`-bearing named tolerance into a named
 # numeric vector covering every resolved measure.
 resolve_tolerance <- function(tol, measures, arg_name) {

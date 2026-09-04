@@ -185,7 +185,9 @@ test_that("key profiles keep missing identity values", {
   # an NA key -- a common reason rows fail to align -- went unreported.
   x <- data.frame(g = c("a", NA), id = 1:2, v = c(1, 2))
   y <- data.frame(g = c("z", "w"), id = 3:4, v = c(1, 2))
-  profile <- key_profile(compare_dt(x, y), "x")
+  profile <- key_profile(
+    suppressWarnings(compare_dt(x, y, disjoint_keys = "warn")), "x"
+  )
 
   expect_equal(profile$n_distinct, lengths(profile$values))
   g_values <- profile$values[[which(profile$column == "g")]]
