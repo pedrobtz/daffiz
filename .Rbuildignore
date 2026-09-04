@@ -3,3 +3,9 @@
 ^docs$
 ^CLAUDE\.md$
 ^\.claude$
+^cran-comments\.md$
+^benchmarks$
+^\.github$
+^Rplots\.pdf$
+^tests/testthat/Rplots\.pdf$
+^inst/WORDLIST$
