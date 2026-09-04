@@ -1,0 +1,177 @@
+---
+title: "Finding Numeric Regressions with daffiz"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Finding Numeric Regressions with daffiz}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+`daffiz` compares numeric measures in two tables that should be nearly
+identical. Every diagnostic derives from one long cell table, and every
+difference retains the original row number from each input.
+
+This vignette follows the usual investigation from the overall result to the
+responsible measures, source records, and exact numeric cells.
+
+```{r setup}
+library(daffiz)
+
+baseline <- data.frame(
+  id = 1:4,
+  region = c("north", "south", "east", "west"),
+  amount = c(100, 200, 300, 400),
+  score = c(0.5, 0.6, 0.7, 0.8)
+)
+
+candidate <- data.frame(
+  id = 2:5,
+  region = c("south", "east", "west", "central"),
+  amount = c(200.02, 330, 400, 500),
+  score = c(0.6, 0.72, 0.8, 0.9)
+)
+
+cmp <- compare_dt(
+  baseline,
+  candidate,
+  abs_tol = c(.default = 0, amount = 0.05)
+)
+```
+
+## 1. Do the measures match?
+
+```{r matching}
+is_matching(cmp)
+summary(cmp, max_cells = 3)
+```
+
+The report names the inferred identity and measure columns, the tolerance
+policy, unmatched-row counts, and bounded samples. Here, `id` and `region` form
+the identity because they are not ordinary double columns. `amount` and `score`
+are measures.
+
+If those defaults are inappropriate, select the roles explicitly:
+
+```{r roles}
+compare_dt(
+  baseline,
+  candidate,
+  by = "id",
+  compare = c("amount", "score"),
+  abs_tol = c(.default = 0, amount = 0.05)
+)
+```
+
+## 2. Which measures differ?
+
+```{r columns}
+column_summary(cmp)
+diff_columns(cmp)
+```
+
+`column_summary()` includes exact cell counts, mismatch fractions, signed and
+absolute mean differences, RMSE, maximum absolute difference, and the 95th
+percentile absolute difference. `diff_columns()` keeps only affected measures
+and ranks the largest problems first.
+
+## 3. Which source records differ?
+
+```{r rows}
+diff_rows(cmp)
+diff_rows(cmp, view = "paired")
+
+diff_indices(cmp, "x")
+original_rows(cmp, "x")
+
+x_only(cmp)
+y_only(cmp)
+```
+
+`.row_x` and `.row_y` always refer to positions in `baseline` and `candidate`
+before any sorting or melting. `original_rows()` uses private snapshots, so the
+recovered records retain the original column order, classes, and values even if
+a caller later modifies a `data.table` by reference.
+
+## 4. What is the exact shape of the differences?
+
+```{r cells}
+diff_cells(cmp)
+diff_cells(cmp, columns = "amount")
+```
+
+Each row is one numeric cell classified as `diff`, `x_only`, or `y_only`.
+`all_cells()` also includes equal cells, which supply the exact denominators for
+the summaries.
+
+Duplicated identities need an explicit policy. The default `"pair"` policy
+sorts and pairs duplicated records deterministically but warns that the pairing
+is heuristic. `"error"` stops. `"report"` records and excludes ambiguous
+groups; because those records were not compared, the resulting comparison is
+incomplete and `is_matching()` returns `FALSE`.
+
+## 5. Where are differences concentrated?
+
+The optional plotting layer is a single view over the same cell table: an
+Amelia-style difference map, in the spirit of `Amelia::missmap()`. Observations
+run down the y axis, numeric measures across the x axis, green where the two
+tables agree and red where they do not.
+
+```{r difference-map, fig.width = 7, fig.height = 4}
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  plot_diff(cmp)
+}
+```
+
+Rows keep their original source order rather than being ranked by how affected
+they are, so a run of regressions in one region of the input reads as a band.
+Above `max_rows` records the map aggregates contiguous rows into bins and
+shades each tile by the share of its cells that differ; no row is dropped, and
+the subtitle discloses the binning.
+
+The fill colours are the Okabe-Ito bluish green and vermillion, which read as
+green and red but stay distinguishable under the common forms of colour
+blindness, and each tile carries a symbol while the map is small enough to
+label it, so the classification never rests on colour alone.
+
+`plot_data()` returns the exact table behind the map. It works without
+`ggplot2`, which is useful for audits and custom graphics.
+
+```{r plot-data}
+plot_data(cmp)
+```
+
+Measure- and record-level questions are answered by the data accessors above
+rather than by further chart types.
+
+## Regression tests
+
+`expect_dt_equal()` exposes the same semantics inside testthat:
+
+```{r expectation}
+expect_dt_equal(baseline, baseline)
+```
+
+Failure messages contain bounded column, row, and cell diagnostics and carry
+the complete comparison object as a condition attribute.
+
+## Time and memory
+
+The canonical result has approximately `n_rows * n_measures` rows. Both inputs
+are melted and joined in memory, and equal cells are retained for exact summary
+denominators. Narrow very wide comparisons with `compare` or `exclude`.
+
+For wide tables, `batch` limits how many measures are melted and joined at one
+time while preserving the complete result. For example,
+`compare_dt(x, y, batch = 10)` processes ten measures per batch. Batching lowers
+the peak size of construction intermediates; it does not reduce the final
+canonical cell table.
+
+Benchmarks measured about 64 retained bytes per unique-key cell and much higher
+working memory during construction. A projected result above 10 million cells
+therefore warns by default. Set a different warning threshold with
+`options(daffiz.max_cells = ...)` after considering the input width, batch size,
+and available memory.

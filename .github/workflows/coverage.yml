@@ -1,0 +1,21 @@
+# Reusable coverage workflow from https://github.com/pedrobtz/r-actions
+#
+# Measures coverage with covr, writes a per-file breakdown to the job summary,
+# and commits a self-hosted badge to .github/badges/coverage.svg on push.
+#
+# `paths-ignore` is load-bearing: the workflow commits the badge back to the
+# repository, and without it that commit re-triggers this workflow in a loop.
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - ".github/badges/coverage.svg"
+  pull_request:
+
+name: coverage.yml
+
+jobs:
+  coverage:
+    uses: pedrobtz/r-actions/.github/workflows/coverage.yml@v1
+    permissions:
+      contents: write

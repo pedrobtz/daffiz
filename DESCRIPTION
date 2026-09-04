@@ -1,0 +1,33 @@
+Package: daffiz
+Title: Numeric Regression Comparison for Tabular Data
+Version: 0.1.0
+Authors@R:
+    person("Pedro", "Baltazar", email = "pedrobtz@gmail.com",
+           role = c("aut", "cre", "cph"))
+Description: Compares numeric measures in two tables that are expected to be
+    nearly identical. Rows are aligned by inferred or explicitly selected
+    identity columns, and differences remain traceable to the original row
+    numbers in both inputs. Symmetric absolute and relative tolerances can be
+    set globally or by measure. Results are returned as a long 'data.table'
+    with one row per aligned numeric cell. Optional plots reveal how numeric
+    differences are distributed across measures and source rows.
+License: MIT + file LICENSE
+URL: https://github.com/pedrobtz/daffiz, https://pedrobtz.github.io/daffiz/
+BugReports: https://github.com/pedrobtz/daffiz/issues
+Encoding: UTF-8
+Language: en-US
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0
+Depends:
+    R (>= 4.1)
+Imports:
+    data.table,
+    stats,
+    utils
+Suggests:
+    ggplot2,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+VignetteBuilder: knitr
