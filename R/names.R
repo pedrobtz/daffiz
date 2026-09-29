@@ -22,14 +22,15 @@ canonical_names <- function(nms) {
 
 # One row per column of `dt`: `name` as the caller wrote it, `column` as it is
 # after canonical_names(), and `label`, the form messages use -- the caller's
-# own spelling, followed by the normalized name when that differs.
+# own spelling, followed by the normalized name only when normalization changed
+# more than the case (`"unit price" (UNIT_PRICE)`, but plain `amount`).
 name_map <- function(dt) {
   nms <- names(dt)
   column <- canonical_names(nms)
   data.table(
     name = nms,
     column = column,
-    label = ifelse(nms == column, column, sprintf("\"%s\" (%s)", nms, column))
+    label = ifelse(toupper(nms) == column, nms, sprintf("\"%s\" (%s)", nms, column))
   )
 }
 

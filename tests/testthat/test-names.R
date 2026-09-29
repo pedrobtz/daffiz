@@ -21,10 +21,10 @@ test_that("every column daffiz creates contains a lowercase letter", {
   expect_true(all(grepl("[a-z]", c(names(MEASURE_TYPES)))))
 })
 
-test_that("name_map labels a renamed column with both spellings", {
-  map <- name_map(data.table(ID = 1, `unit price` = 2))
-  expect_identical(map$column, c("ID", "UNIT_PRICE"))
-  expect_identical(map$label, c("ID", "\"unit price\" (UNIT_PRICE)"))
+test_that("name_map labels a column by its own spelling, adding the normalized one only when it is more than a change of case", {
+  map <- name_map(data.table(ID = 1, amount = 2, `unit price` = 3))
+  expect_identical(map$column, c("ID", "AMOUNT", "UNIT_PRICE"))
+  expect_identical(map$label, c("ID", "amount", "\"unit price\" (UNIT_PRICE)"))
 })
 
 test_that("check_names refuses empty and colliding names, naming each group", {

@@ -32,8 +32,10 @@ B_extra <- rbind(A, data.table(ID = "e", GRP = "z", DAY = as.Date("2024-02-01"),
 
 test_that("rows added and removed", {
   check("B has an extra row: it is only_y", is_tally(diff_table(A, B_extra), same = 4L, only_y = 1L))
-  check("B shares no ids with A: everything is one-sided",
-    is_tally(diff_table(A, copy(A)[, ID := paste0(ID, "!")]), only_x = 4L, only_y = 4L))
+  # Nothing aligns, so nothing would be compared: every row one-sided. That
+  # is almost always a wrong key, and is refused rather than reported.
+  check_error("B shares no ids with A: refused, since nothing aligns",
+    diff_table(A, copy(A)[, ID := paste0(ID, "!")]), "No identity value of `x` appears in `y`")
 })
 
 # Changing an id column is an identity change, not a value change.
@@ -76,9 +78,7 @@ test_that("tolerance", {
   check("tolerance is not a free pass", is_tally(diff_table(A, B_val, tolerance = 1e-6), same = 3L, changed = 1L))
 })
 
-test_that("modes agree", {
-  check("in_place and new give the same answer",
-    identical(tally(diff_table(A, B_mix)), tally(diff_table(A, B_mix, mode = "new"))))
+test_that("the inputs are left alone", {
   check("in_place leaves A alone", {
     before <- copy(A)
     invisible(diff_table(A, B_mix))
@@ -115,9 +115,10 @@ B_wide <- copy(A)[, NOTE := "hi"]
 
 test_that("columns", {
   check("an extra column in B does not stop the compare",
-    is_tally(diff_table(A, B_wide), same = 4L))
+    is_tally(suppressMessages(diff_table(A, B_wide)), same = 4L))
+  expect_message(diff_table(A, B_wide), "NOTE", class = "daffiz_message_dropped_columns")
   check_error("a missing column in B is refused",
-    diff_table(A, copy(A)[, GRP := NULL]), "not in both tables")
+    diff_table(A, copy(A)[, GRP := NULL]), "`y` is missing column\\(s\\) the benchmark `x` has: GRP")
 })
 
 A_na <- copy(A)[ID == "a", VAL := NA_real_]
@@ -146,9 +147,10 @@ A_dup <- data.table(
 B_dup <- copy(A_dup)
 
 test_that("ids that do not tell rows apart", {
-  check("duplicate ids: disambiguated by arrival order", is_tally(diff_table(A_dup, B_dup), same = 3L))
+  expect_warning(diff_table(A_dup, B_dup), class = "daffiz_warning_duplicates")
+  check("duplicate ids: disambiguated by arrival order", is_tally(suppressWarnings(diff_table(A_dup, B_dup)), same = 3L))
   check("duplicate ids: a change inside the group is found",
-    is_tally(diff_table(A_dup, copy(A_dup)[3, VAL := 21]), same = 2L, changed = 1L))
+    is_tally(suppressWarnings(diff_table(A_dup, copy(A_dup)[3, VAL := 21])), same = 2L, changed = 1L))
   check_error("duplicates = error refuses", diff_table(A_dup, B_dup, duplicates = "error"),
     "do not tell rows apart")
   check("duplicates = aggregate collapses the group", {

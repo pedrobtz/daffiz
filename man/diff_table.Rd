@@ -2,59 +2,169 @@
 % Please edit documentation in R/diff-table.R
 \name{diff_table}
 \alias{diff_table}
-\title{Diff two tables, value by value}
+\title{Compare two tables value by value}
 \usage{
 diff_table(
   x,
   y,
-  mode = c("in_place", "new"),
-  measures = c("numeric", "numeric+integer"),
-  cast = TRUE,
+  mode = c("benchmark", "equal"),
+  by = NULL,
+  measures = "numeric",
+  tolerance = 0,
   duplicates = c("disambiguate", "aggregate", "error"),
-  date_format = "\%Y-\%m-\%d",
-  tolerance = 0
+  cast = mode == "benchmark",
+  truncate = TRUE,
+  nan_is_na = TRUE,
+  date_format = "\%Y-\%m-\%d"
 )
 }
 \arguments{
-\item{x}{The baseline table.}
+\item{x}{The benchmark table (in \code{"equal"} mode, simply the first table).}
 
-\item{y}{The candidate table.}
+\item{y}{The table to compare with it.}
 
-\item{mode}{\code{"in_place"} (the default) merges by reference into the
-melted copy of \code{x} that this function owns, so no second wide table is
-built. Rows that exist only in \code{y} are picked up with an anti-join and
-appended, which an update join would otherwise drop. \code{"new"} builds
-the merged table instead, as a full outer join.}
+\item{mode}{\code{"benchmark"} (the default) or \code{"equal"}. See Modes.}
 
-\item{measures}{Which columns to treat as measures, passed to
-\code{melt_dt()}: \code{"numeric"} (the default) or
-\code{"numeric+integer"}.}
+\item{by}{Identity columns, by name, in either spelling. \code{NULL} (the
+default) uses every column that is not a measure.}
 
-\item{cast}{Whether to cast \code{y}'s columns to \code{x}'s types first.
-When FALSE, nothing is converted and the shared columns must already agree
-on type, which is checked up front. Either way \code{x} itself must be in
-the baseline types; see \code{normalize_dt()}.}
+\item{measures}{\code{"numeric"} (the default) compares the double columns;
+\code{"numeric+integer"} the integer columns too. Or column names, which must
+be numeric or integer.}
 
-\item{duplicates}{What to do when the id columns do not tell rows apart.
-\code{"disambiguate"} numbers them by arrival order, \code{"aggregate"}
-compares the value multisets per key instead (a different, coarser answer:
-\code{n_rows} and \code{value_key} rather than \code{value_x}/\code{value_y}),
-\code{"error"} refuses.}
+\item{tolerance}{The largest absolute difference still counted as \code{same}.}
 
-\item{date_format}{The format dates are read and written in when
-\code{cast = TRUE}; see \code{cast_value()}. Text must match it exactly,
-so a string that merely starts with a date is refused rather than
-truncated into one.}
+\item{duplicates}{\code{"disambiguate"} (the default), \code{"aggregate"} or
+\code{"error"}. See Duplicate keys.}
 
-\item{tolerance}{The largest absolute difference still counted as
-\code{"same"}.}
+\item{cast}{Whether to cast \code{y} to \code{x}'s types. Defaults to \code{TRUE} in
+benchmark mode; with \code{FALSE} the types must already agree. Equal mode
+never casts.}
+
+\item{truncate}{Whether a cast may drop a fraction. See Truncation.}
+
+\item{nan_is_na}{Whether NaN and NA are the same missing value.}
+
+\item{date_format}{The format text dates are read in when cast to \code{Date}.
+Text must match it exactly, so a string that merely starts with a date is
+refused rather than read as one.}
 }
 \value{
-A data.table keyed by the id columns and the measure name, holding
-each side's value, their \code{diff}, and a \code{status} of
-\code{"same"}, \code{"changed"}, \code{"only_x"} or \code{"only_y"}.
+A \code{data.table} keyed by the identity columns (and \code{key_seq},
+\code{metric} when present), with \code{status} a factor with levels \code{same},
+\code{changed}, \code{only_x} and \code{only_y}. Its shape is in \code{attr(, "shape")}:
+\itemize{
+\item \code{"cells"}, the usual one: one row per row and measure, with \code{key_seq}
+(only when duplicates were numbered), \code{metric}, \code{row_id_x}, \code{row_id_y}
+(the source rows, \code{NA} on the side the row is missing from),
+\code{value_x}, \code{value_y}, \code{diff} (\code{value_y - value_x}) and \code{status}.
+\item \code{"groups"}, with \code{duplicates = "aggregate"}: one row per key and
+measure, with \code{n_rows_x}, \code{n_rows_y}, \code{n_na_x}, \code{n_na_y},
+\code{value_key_x}, \code{value_key_y} (the exact multiset of values) and
+\code{status}. Without measures only the row counts are compared.
+\item \code{"rows"}, when there are no measures: one row per row, with \code{key_seq}
+(when present), \code{row_id_x}, \code{row_id_y} and \code{status}, which is never
+\code{changed}.
+}
+
+The attributes \code{mode}, \code{name_map} (each column's name in \code{x} and \code{y}),
+\code{dropped} (columns of \code{y} dropped in benchmark mode), \code{ignored} (columns
+not compared) and \code{truncated} (the casts that truncated) record what was
+done on the way.
 }
 \description{
-The whole pipeline in one call: cast \code{y} to \code{x}'s types, melt both,
-make sure the rows can be told apart, gate the join, and report what changed.
+\code{x} is the benchmark: in the default \code{mode = "benchmark"} it is the source
+of truth, and \code{y} is the table being tested against it. With
+\code{mode = "equal"} the two are peers, and the question is simply whether they
+are equal. Rows are aligned on their identity columns and every numeric
+measure is compared, one row per value, each traceable to its source row in
+both tables.
+}
+\section{Modes}{
+
+\itemize{
+\item \code{"benchmark"}: does \code{y} match the benchmark \code{x}? Columns of \code{y} that \code{x}
+does not have are dropped, with a message. A column of \code{x} missing from
+\code{y} is an error. Each column of \code{y} is cast to the type it has in \code{x}
+(see \code{\link[=cast_rules]{cast_rules()}}), so a number stored as text, or a double stored as
+an integer, still compares.
+\item \code{"equal"}: are \code{x} and \code{y} equal? Every column must be in both tables and
+have the same type in both; nothing is cast. The result is symmetric:
+swapping \code{x} and \code{y} swaps \code{only_x} with \code{only_y} and negates \code{diff}.
+}
+}
+
+\section{Column names}{
+
+Column names are normalized in both tables before anything else: upper
+case, with every run of characters other than \code{A-Z} and \code{0-9} replaced by
+\verb{_}, and \verb{_} trimmed from the ends. So \verb{unit price}, \code{Unit.Price} and
+\code{UNIT_PRICE} are one column, in either table. Two names in one table that
+normalize to the same thing are an error to fix before comparing. The
+result uses the normalized names; \code{attr(, "name_map")} maps them back.
+}
+
+\section{Truncation}{
+
+In benchmark mode a cast that drops a fraction -- a double to an integer, a
+number or a timestamp to a whole day -- is made by default, because the
+benchmark's types are taken as the truth: storage such as Spark or Delta
+turns a locally built double into an integer, and the comparison has to
+follow it. Each truncation is announced in a message and recorded in
+\code{attr(, "truncated")}. Set \code{truncate = FALSE} to refuse such casts instead.
+}
+
+\section{Measures and identity}{
+
+The measures are the numeric columns compared value by value; \code{measures}
+picks them by type or by name, always from \code{x}. The row identity is \code{by}
+when given, otherwise every column that is not a measure. With \code{by} given,
+a column in neither role is not compared: that is announced in benchmark
+mode and an error in equal mode, which cannot call two tables equal while
+ignoring a column. A numeric column that is part of the identity is matched
+exactly, with no tolerance.
+
+With no measures at all the question becomes \emph{do the two tables have the
+same rows?}, and the result has one row per row (see Value).
+}
+
+\section{Duplicate keys}{
+
+When the identity does not tell rows apart, \code{duplicates} decides:
+\itemize{
+\item \code{"disambiguate"} numbers the rows of each repeated key in arrival order
+(\code{key_seq}) and pairs them by that number, with a warning: the pairing is
+an assumption. Reordered rows then show as changes, never as matches.
+Without measures the repeated rows are identical in every compared
+column, so pairing them assumes nothing and there is no warning.
+\item \code{"aggregate"} compares the multiset of values of each key and measure
+instead, exactly (\code{tolerance} must be 0).
+\item \code{"error"} refuses.
+}
+}
+
+\section{Values}{
+
+A value is \code{same} when both are equal, or when both are finite and differ
+by at most \code{tolerance}. Two missing values are the same; with
+\code{nan_is_na = TRUE} NaN and NA are the same missing value, in measures and in
+key columns alike.
+}
+
+\examples{
+benchmark <- data.frame(id = 1:4, amount = c(10, 20, 30, 40))
+tested <- data.frame(
+  ID = c("1", "2", "3", "5"),
+  Amount = c(10, 20.5, 30, 50),
+  loaded_at = "2024-01-01"
+)
+d <- diff_table(benchmark, tested)
+d
+d[status != "same"]
+
+# Equal mode: no casting, every column in both tables.
+diff_table(benchmark, benchmark, mode = "equal")
+
+# No measures: do the tables have the same rows?
+diff_table(data.frame(k = c("a", "b")), data.frame(k = c("b", "c", "a")))
 }
