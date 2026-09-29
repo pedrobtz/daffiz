@@ -4,9 +4,9 @@
 \name{daffiz-package}
 \alias{daffiz}
 \alias{daffiz-package}
-\title{daffiz: Numeric Regression Comparison for Tabular Data}
+\title{daffiz: Value-by-Value Comparison of Two Tables}
 \description{
-Compares numeric measures in two tables that are expected to be nearly identical. Rows are aligned by inferred or explicitly selected identity columns, and differences remain traceable to the original row numbers in both inputs. Symmetric absolute and relative tolerances can be set globally or by measure. Results are returned as a long 'data.table' with one row per aligned numeric cell. Optional plots reveal how numeric differences are distributed across measures and source rows.
+Compares two tables value by value. A candidate table can be checked against a benchmark whose column types are taken as the truth, with the candidate's columns cast to those types first, or two tables can be checked for equality as peers. Rows are aligned on their identity columns, numeric measures are compared within an optional tolerance, and the result is a long 'data.table' with one row per compared value that traces back to the source rows of both inputs.
 }
 \seealso{
 Useful links:
