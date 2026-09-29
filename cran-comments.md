@@ -10,9 +10,9 @@ R 4.6.1 on macOS arm64.
 ## Method references
 
 There are no published references describing the methods in this package. It
-implements tolerance-aware numeric comparison of two tabular datasets: rows are
-aligned on identity columns, and each numeric cell is classified as equal,
-different, or present on only one side.
+compares two tabular datasets value by value: rows are aligned on identity
+columns, and each numeric value is classified as the same (within a
+tolerance), changed, or present on only one side.
 
 ## Before submitting
 
@@ -20,9 +20,7 @@ These must be true at submission time or the URL check will report 404s:
 
 - [ ] `https://github.com/pedrobtz/daffiz` is **public** (it is private during
       development, which makes every URL below fail for CRAN's checker)
-- [ ] `benchmarks/` is committed and pushed to `main`, so the README's
-      benchmark-validation link resolves
 - [ ] the pkgdown workflow has deployed, so
-      `https://pedrobtz.github.io/daffiz/` and its article link resolve
+      `https://pedrobtz.github.io/daffiz/` resolves
 
 Re-run `urlchecker::url_check()` once those are done.

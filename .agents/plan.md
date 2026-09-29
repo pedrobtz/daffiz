@@ -1,5 +1,5 @@
 ---
-status: pending
+status: implemented (2026-09-29, branch redo-core)
 ---
 
 # daffiz 0.1.0
