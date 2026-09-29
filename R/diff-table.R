@@ -50,6 +50,22 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' With no measures at all the question becomes *do the two tables have the
 #' same rows?*, and the result has one row per row (see Value).
 #'
+#' @section Well-formed tables:
+#' A table must have at least one key column to be compared; it may have no
+#' measures. When every column is a measure there is nothing to align rows
+#' on, and `diff_table()` refuses unless it is given a key: `by`, fewer
+#' `measures`, or a virtual one with `row_key`, which adds a `row_number` key
+#' column to both tables:
+#' * `"position"` numbers the rows as they come, so row *i* of `x` pairs with
+#'   row *i* of `y`, and a different row order shows as differences.
+#' * `"sorted"` numbers the rows after sorting both tables by all their
+#'   compared columns, so row order does not matter. Compared exactly, that
+#'   pairs the tables as multisets of rows, and cannot pass two tables that
+#'   hold different rows. It can pair badly instead: one changed value can
+#'   move its row within the sort, and the rows after it then pair with the
+#'   wrong partners and show as changes too. With other key columns, rows
+#'   are sorted and numbered within each of their groups.
+#'
 #' @section Duplicate keys:
 #' When the identity does not tell rows apart, `duplicates` decides:
 #' * `"disambiguate"` numbers the rows of each repeated key in arrival order
@@ -72,6 +88,8 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' @param mode `"benchmark"` (the default) or `"equal"`. See Modes.
 #' @param by Identity columns, by name, in either spelling. `NULL` (the
 #'   default) uses every column that is not a measure.
+#' @param row_key `"none"` (the default), `"position"` or `"sorted"`: add a
+#'   virtual `row_number` key column. See Well-formed tables.
 #' @param measures `"numeric"` (the default) compares the double columns;
 #'   `"numeric+integer"` the integer columns too. Or column names, which must
 #'   be numeric or integer.
@@ -90,6 +108,7 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' @return A `data.table` keyed by the identity columns (and `key_seq`,
 #'   `metric` when present), with `status` a factor with levels `same`,
 #'   `changed`, `only_x` and `only_y`. Its shape is in `attr(, "shape")`:
+#'   The key includes `row_number` when `row_key` added it.
 #'   * `"cells"`, the usual one: one row per row and measure, with `key_seq`
 #'     (only when duplicates were numbered), `metric`, `row_id_x`, `row_id_y`
 #'     (the source rows, `NA` on the side the row is missing from),
@@ -121,11 +140,19 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' # Equal mode: no casting, every column in both tables.
 #' diff_table(benchmark, benchmark, mode = "equal")
 #'
+#' # No key at all: align rows by sorting both tables by their values.
+#' diff_table(
+#'   data.frame(a = c(3, 1, 2), b = c(30, 10, 20)),
+#'   data.frame(a = c(1, 2, 3), b = c(10, 25, 30)),
+#'   row_key = "sorted"
+#' )
+#'
 #' # No measures: do the tables have the same rows?
 #' diff_table(data.frame(k = c("a", "b")), data.frame(k = c("b", "c", "a")))
 diff_table <- function(x, y,
                        mode = c("benchmark", "equal"),
                        by = NULL,
+                       row_key = c("none", "position", "sorted"),
                        measures = "numeric",
                        tolerance = 0,
                        duplicates = c("disambiguate", "aggregate", "error"),
@@ -138,6 +165,7 @@ diff_table <- function(x, y,
     daffiz_abort("daffiz_error_input", "`x` and `y` must be data.frames")
   }
   mode <- match.arg(mode)
+  row_key <- match.arg(row_key)
   duplicates <- match.arg(duplicates)
   if (!is.numeric(tolerance) || length(tolerance) != 1L || !is.finite(tolerance) ||
     tolerance < 0) {
@@ -297,13 +325,26 @@ diff_table <- function(x, y,
     }
   }
   ids <- if (is.null(by)) setdiff(names(xx), measure) else by
+
+  # A table is well-formed when it has at least one key column; it may have no
+  # measures. Without a key, rows cannot be aligned at all, so the caller
+  # either names one or asks for a virtual one: the row number, as the rows
+  # come or after sorting both tables by what they hold.
+  if (row_key != "none") {
+    set(xx, j = "row_number", value = virtual_key(xx, row_key, ids, measure, nan_is_na))
+    set(yy, j = "row_number", value = virtual_key(yy, row_key, ids, measure, nan_is_na))
+    label_x[["row_number"]] <- "row_number"
+    ids <- c(ids, "row_number")
+  }
   if (!length(ids)) {
     daffiz_abort(
       "daffiz_error_keys",
       paste0(
-        "No identity columns: every column is a measure, so rows cannot be ",
-        "aligned. Name the identity with `by=`, or leave some columns out of ",
-        "`measures`."
+        "The tables are not well-formed: they have no key column, since every ",
+        "column is a measure, so rows cannot be aligned. Name the key with ",
+        "`by=`, leave some columns out of `measures`, or add a virtual key: ",
+        "row_key = \"position\" pairs the rows as they come, and ",
+        "row_key = \"sorted\" pairs them after sorting both tables by their values."
       )
     )
   }

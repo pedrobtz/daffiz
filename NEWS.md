@@ -23,6 +23,10 @@ First release.
 * `by` names the row identity. `measures` chooses the compared columns, by
   type (`"numeric"`, `"numeric+integer"`) or by name. With no measures,
   `diff_table()` compares whole rows.
+* A table must have at least one key column. When it has none,
+  `row_key = "position"` adds the row number as a virtual key, and
+  `row_key = "sorted"` adds it after sorting both tables by their values, so
+  row order does not matter.
 * Duplicate keys are paired in arrival order with a warning, compared as
   exact multisets with `duplicates = "aggregate"`, or refused with
   `duplicates = "error"`.

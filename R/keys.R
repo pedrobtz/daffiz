@@ -149,3 +149,57 @@ aggregate_by_key <- function(long, by = key(long), along = "metric",
 
   setkeyv(out, by)[]
 }
+
+#' A virtual key: the row number, as the rows come or after sorting
+#'
+#' For a table with no key column of its own, or when the caller wants rows
+#' paired by position rather than by value.
+#'
+#' \code{"position"} is the row number: row i of one table pairs with row i of
+#' the other, so the comparison also says whether the rows come in the same
+#' order.
+#'
+#' \code{"sorted"} is the row's number once the table is sorted by all its
+#' compared columns (within each group of the other key columns, when there
+#' are any), so row order does not matter. Compared exactly, that pairs the
+#' two tables as multisets of rows: if every pair matches, the tables hold the
+#' same rows, so it cannot pass two tables that differ. What it can do is
+#' pair badly: one changed value can move its row to another place in the
+#' sort, and the rows after it then pair with the wrong partners and show as
+#' changes too. A tolerance adds the same risk for values within it that sort
+#' differently on the two sides.
+#'
+#' Sorting is radix, in the C locale, with missing values last, so both
+#' tables sort the same way in any session. With \code{nan_is_na}, NaN sorts as
+#' NA does.
+#'
+#' @param dt The table, already cast to the reference types.
+#' @param how \code{"position"} or \code{"sorted"}.
+#' @param groups The other key columns, numbered within.
+#' @param sort_by The measure columns, sorted on after \code{groups}.
+#' @param nan_is_na Whether NaN sorts as NA.
+#' @return An integer vector, one number per row of \code{dt}.
+#' @noRd
+virtual_key <- function(dt, how = c("position", "sorted"), groups = character(),
+                        sort_by = character(), nan_is_na = TRUE) {
+  how <- match.arg(how)
+  n <- nrow(dt)
+  if (how == "position" || !n) {
+    return(seq_len(n))
+  }
+
+  keys <- lapply(as.list(dt)[c(groups, sort_by)], function(v) {
+    if (nan_is_na && is.double(v) && !is.object(v) && any(is.nan(v))) {
+      v[is.nan(v)] <- NA_real_
+    }
+    v
+  })
+  o <- do.call(order, c(unname(keys), list(method = "radix", na.last = TRUE)))
+  out <- integer(n)
+  out[o] <- if (length(groups)) {
+    rowidv(setDT(lapply(keys[groups], `[`, o)))
+  } else {
+    seq_len(n)
+  }
+  out
+}

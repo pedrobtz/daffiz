@@ -18,7 +18,6 @@ someone asks.
 | `rel_tol`, and tolerance per measure (`c(.default = 0, amount = 0.01)`) | `R/preflight.R` `resolve_tolerance()`, `R/compare-dt.R` `classify_cells()` | The core has one absolute tolerance | Resolve a named vector over the measures, match it on `metric`, and use `pmax(abs, rel * pmax(abs(x), abs(y)))`. Port the tests in `test-tolerance.R`. | H |
 | `.abs_diff`, `.rel_diff` columns | `classify_cells()` | They can be derived from `diff` | Add them together with `rel_tol` | L |
 | `exclude=` | `R/preflight.R` gate 3 | Not in the core | Drop the columns right after `canonical_names()`, before the column step; warn on unknown names | M |
-| Positional alignment (`by = daffiz_row_number()`) | `R/resolve-columns.R` | The core always joins on values | Use `row_id_x`/`row_id_y` as the key | M |
 | Role inference: shared unclassed doubles, and hints for numeric type skew | `R/resolve-columns.R`, `R/preflight.R` | Replaced by casting (`CAST_RULES`) and selecting measures by type | Probably never; casting covers the int/double skew | — |
 | Checks on identity attributes (factor `levels`, difftime `units`) | `R/preflight.R` `column_signature()` | Factor and difftime are not cast target types, so `x` refuses them and `normalize_dt()` converts them | Only if difftime/units become cast types | L |
 | Allow-list of identity types (reject complex/raw/list) | `daffiz_joinable_types` | `CAST_TYPES` is itself an allow-list | — (covered) | — |

@@ -9,6 +9,7 @@ diff_table(
   y,
   mode = c("benchmark", "equal"),
   by = NULL,
+  row_key = c("none", "position", "sorted"),
   measures = "numeric",
   tolerance = 0,
   duplicates = c("disambiguate", "aggregate", "error"),
@@ -27,6 +28,9 @@ diff_table(
 
 \item{by}{Identity columns, by name, in either spelling. \code{NULL} (the
 default) uses every column that is not a measure.}
+
+\item{row_key}{\code{"none"} (the default), \code{"position"} or \code{"sorted"}: add a
+virtual \code{row_number} key column. See Well-formed tables.}
 
 \item{measures}{\code{"numeric"} (the default) compares the double columns;
 \code{"numeric+integer"} the integer columns too. Or column names, which must
@@ -53,6 +57,7 @@ refused rather than read as one.}
 A \code{data.table} keyed by the identity columns (and \code{key_seq},
 \code{metric} when present), with \code{status} a factor with levels \code{same},
 \code{changed}, \code{only_x} and \code{only_y}. Its shape is in \code{attr(, "shape")}:
+The key includes \code{row_number} when \code{row_key} added it.
 \itemize{
 \item \code{"cells"}, the usual one: one row per row and measure, with \code{key_seq}
 (only when duplicates were numbered), \code{metric}, \code{row_id_x}, \code{row_id_y}
@@ -128,6 +133,26 @@ With no measures at all the question becomes \emph{do the two tables have the
 same rows?}, and the result has one row per row (see Value).
 }
 
+\section{Well-formed tables}{
+
+A table must have at least one key column to be compared; it may have no
+measures. When every column is a measure there is nothing to align rows
+on, and \code{diff_table()} refuses unless it is given a key: \code{by}, fewer
+\code{measures}, or a virtual one with \code{row_key}, which adds a \code{row_number} key
+column to both tables:
+\itemize{
+\item \code{"position"} numbers the rows as they come, so row \emph{i} of \code{x} pairs with
+row \emph{i} of \code{y}, and a different row order shows as differences.
+\item \code{"sorted"} numbers the rows after sorting both tables by all their
+compared columns, so row order does not matter. Compared exactly, that
+pairs the tables as multisets of rows, and cannot pass two tables that
+hold different rows. It can pair badly instead: one changed value can
+move its row within the sort, and the rows after it then pair with the
+wrong partners and show as changes too. With other key columns, rows
+are sorted and numbered within each of their groups.
+}
+}
+
 \section{Duplicate keys}{
 
 When the identity does not tell rows apart, \code{duplicates} decides:
@@ -164,6 +189,13 @@ d[status != "same"]
 
 # Equal mode: no casting, every column in both tables.
 diff_table(benchmark, benchmark, mode = "equal")
+
+# No key at all: align rows by sorting both tables by their values.
+diff_table(
+  data.frame(a = c(3, 1, 2), b = c(30, 10, 20)),
+  data.frame(a = c(1, 2, 3), b = c(10, 25, 30)),
+  row_key = "sorted"
+)
 
 # No measures: do the tables have the same rows?
 diff_table(data.frame(k = c("a", "b")), data.frame(k = c("b", "c", "a")))

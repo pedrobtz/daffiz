@@ -128,3 +128,16 @@ test_that("with no value column, aggregation counts the rows", {
   expect_identical(names(out), c("ID", "n_rows"))
   expect_identical(out$n_rows, c(2L, 1L))
 })
+
+test_that("virtual_key numbers rows by position or by sorted value", {
+  dt <- data.table(g = c("b", "a", "a"), v = c(1, 3, 2))
+  expect_identical(virtual_key(dt, "position"), 1:3)
+  expect_identical(virtual_key(dt, "sorted", sort_by = c("g", "v")), c(3L, 2L, 1L))
+  expect_identical(virtual_key(dt, "sorted", groups = "g", sort_by = "v"), c(1L, 2L, 1L))
+  expect_identical(virtual_key(dt[0], "sorted", sort_by = "v"), integer())
+})
+
+test_that("virtual_key sorts text in the C locale, whatever the session", {
+  dt <- data.table(s = c("b", "B", "a"))
+  expect_identical(virtual_key(dt, "sorted", sort_by = "s"), c(3L, 1L, 2L))
+})

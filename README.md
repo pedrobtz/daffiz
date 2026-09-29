@@ -156,7 +156,10 @@ unless you pass `duplicates = "disambiguate"` or `duplicates = "aggregate"`.
 - **Measures** are the numeric columns compared value by value. They default
   to the double columns; `measures` takes `"numeric+integer"` or column
   names.
-- **The row identity** is `by`, or every column that is not a measure.
+- **The row identity** is `by`, or every column that is not a measure. A
+  table needs at least one key column. When every column is a measure, add a
+  virtual one: `row_key = "position"` pairs rows as they come, and
+  `row_key = "sorted"` pairs them after sorting both tables by their values.
 - **Duplicate keys** are paired in arrival order with a warning, compared as
   multisets (`duplicates = "aggregate"`), or refused
   (`duplicates = "error"`).

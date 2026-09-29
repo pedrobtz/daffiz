@@ -164,9 +164,76 @@ test_that("by is validated", {
   expect_error(diff_table(x, x, by = NA_character_), class = "daffiz_error_input")
 })
 
-test_that("a table whose every column is a measure has no identity", {
+test_that("a table with no key column is not well-formed", {
   x <- data.table(v = c(1, 2))
-  expect_error(diff_table(x, x), "No identity columns", class = "daffiz_error_keys")
+  err <- expect_error(diff_table(x, x), "not well-formed: they have no key column", class = "daffiz_error_keys")
+  expect_match(conditionMessage(err), 'row_key = "position"', fixed = TRUE)
+  expect_match(conditionMessage(err), 'row_key = "sorted"', fixed = TRUE)
+})
+
+# Virtual keys ----------------------------------------------------------------
+
+test_that("row_key = \"position\" pairs rows as they come", {
+  x <- data.table(a = c(3, 1, 2), b = c(30, 10, 20))
+  y <- data.table(a = c(3, 1, 2, 4), b = c(30, 11, 20, 40))
+  d <- diff_table(x, y, row_key = "position")
+  expect_identical(key(d), c("row_number", "metric"))
+  expect_identical(d[status == "changed", paste(row_number, metric)], "2 B")
+  expect_identical(unique(d[status == "only_y", row_number]), 4L)
+  # Same rows in another order: every row differs by position.
+  expect_true(all(diff_table(x, x[c(2, 3, 1)], row_key = "position")$status == "changed"))
+})
+
+test_that("row_key = \"sorted\" pairs rows whatever their order", {
+  x <- data.table(a = c(3, 1, 2), b = c(30, 10, 20))
+  y <- x[c(2, 3, 1)]
+  d <- diff_table(x, y, row_key = "sorted")
+  expect_true(all(d$status == "same"))
+  # row_id_x/row_id_y still point at each table's own rows.
+  expect_identical(d[metric == "A", row_id_x], c(2L, 3L, 1L))
+  expect_identical(d[metric == "A", row_id_y], 1:3)
+})
+
+test_that("row_key = \"sorted\" compares multisets of rows exactly", {
+  x <- data.table(a = c(1, 1, 2), b = c(10, 10, 20))
+  expect_true(all(diff_table(x, x[c(3, 1, 2)], row_key = "sorted", mode = "equal")$status == "same"))
+  # A different multiset can never pass.
+  y <- data.table(a = c(1, 2, 2), b = c(10, 20, 20))
+  expect_true(any(diff_table(x, y, row_key = "sorted")$status != "same"))
+})
+
+test_that("row_key = \"sorted\" numbers rows within the other key columns", {
+  x <- data.table(id = c("a", "a", "b"), v = c(2, 1, 3))
+  y <- data.table(id = c("a", "a", "b"), v = c(1, 2, 3))
+  expect_no_warning(d <- diff_table(x, y, row_key = "sorted"))
+  expect_identical(key(d), c("ID", "row_number", "metric"))
+  expect_true(all(d$status == "same"))
+})
+
+test_that("the virtual key is never a measure, and is symmetric in equal mode", {
+  x <- data.table(n = c(1L, 2L), v = c(1, 2))
+  y <- data.table(n = c(2L, 1L), v = c(2, 1.5))
+  d <- diff_table(x, y, row_key = "sorted", measures = "numeric+integer")
+  expect_setequal(unique(d$metric), c("N", "V"))
+  for (how in c("position", "sorted")) {
+    xy <- diff_table(x, y, mode = "equal", row_key = how, measures = "numeric+integer")
+    yx <- diff_table(y, x, mode = "equal", row_key = how, measures = "numeric+integer")
+    expect_identical(yx$status, xy$status)
+    expect_equal(yx$diff, -xy$diff)
+  }
+})
+
+test_that("row_key sorts NaN as NA when they are the same missing value", {
+  x <- data.table(a = c(NA, 1))
+  y <- data.table(a = c(1, NaN))
+  expect_true(all(diff_table(x, y, row_key = "sorted")$status == "same"))
+})
+
+test_that("row_key works without measures, and with a user column called row_number", {
+  x <- data.table(row_number = c("p", "q", "r"))
+  d <- suppressMessages(diff_table(x, x[c(1, 3, 2)], row_key = "position"))
+  expect_identical(names(d), c("ROW_NUMBER", "row_number", "row_id_x", "row_id_y", "status"))
+  expect_identical(sort(as.character(d$status)), c("only_x", "only_x", "only_y", "only_y", "same"))
 })
 
 # Values ------------------------------------------------------------------------

@@ -15,6 +15,7 @@ D-a…D-h). Anything not listed here is out of scope for 0.1.0 (see
 diff_table(x, y,
            mode = c("benchmark", "equal"),
            by = NULL,
+           row_key = c("none", "position", "sorted"),  # added after implementation
            measures = "numeric",        # or "numeric+integer", or column names
            tolerance = 0,
            duplicates = c("disambiguate", "aggregate", "error"),
@@ -66,6 +67,10 @@ examples. `truncate = FALSE` refuses them.
 - With `by` given, left-over columns are ignored with a message in
   `"benchmark"` and are an error in `"equal"`.
 - With no measures at all, the question becomes "do they have the same rows?".
+- (Added after implementation.) A table must have at least one key column; it
+  may have no measures. With no key, `diff_table()` errors, unless `row_key`
+  adds a virtual `row_number` key: `"position"` numbers the rows as they come,
+  `"sorted"` numbers them after sorting both tables by their compared columns.
 
 **Values.** A cell is `same` when both values are equal, or `|y - x| <=
 tolerance`. With `nan_is_na = TRUE`, NaN counts as NA: in cells, in

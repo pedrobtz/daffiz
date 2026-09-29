@@ -136,6 +136,12 @@ Each is covered by a test.
   fanout worth refusing would fail to build.
 - **`col_type()` is the only type vocabulary.** A second one (`class()[1]`)
   made IDate and integer64 one type to one function and another to the next.
+- **A table is well-formed when it has at least one key column; it may have
+  no measures.** With no key, the error offers `row_key`, which adds a
+  lowercase `row_number` key: the position, or the rank after sorting by
+  every compared column. `"sorted"` sorts in radix (C locale) order with NaN
+  as NA, so both tables sort alike in any session. Compared exactly it can
+  only pair badly, never pass different rows.
 - **Measure keywords are lowercase; normalized names never are.** So
   `measures = "numeric"` can never mean a column.
 - **`NORMALIZE_TO` has no POSIXct default.** Turning a stamp into a Date
