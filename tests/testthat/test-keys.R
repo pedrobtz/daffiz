@@ -24,41 +24,24 @@ test_that("unique_by_key", {
 
 lx <- melt_dt(dup)
 
-disambiguate_by_key(lx, "rowid")
+disambiguate_by_key(lx)
 
 test_that("disambiguate_by_key", {
-  check("disambiguate_by_key: adds the sequence column", "KEY_SEQ" %in% names(lx))
-  check("disambiguate_by_key: numbers within the group", setequal(lx[id == "a", KEY_SEQ], c(1L, 2L)))
-  check("disambiguate_by_key: a single-row group gets 1", all(lx[id == "b", KEY_SEQ] == 1L))
-  check("disambiguate_by_key: the key now includes it", identical(key(lx), c("id", "KEY_SEQ")))
+  check("disambiguate_by_key: adds the sequence column", "key_seq" %in% names(lx))
+  check("disambiguate_by_key: numbers within the group", setequal(lx[id == "a", key_seq], c(1L, 2L)))
+  check("disambiguate_by_key: a single-row group gets 1", all(lx[id == "b", key_seq] == 1L))
+  check("disambiguate_by_key: the key now includes it", identical(key(lx), c("id", "key_seq")))
   check("disambiguate_by_key: the table is now unique by key", isTRUE(unique_by_key(lx)))
-  check("disambiguate_by_key: modifies by reference", "KEY_SEQ" %in% names(lx))
-})
-
-rank_dt <- melt_dt(data.table(id = c("a", "a", "a"), v = c(30, 10, 20)))
-
-disambiguate_by_key(rank_dt, "value_rank")
-
-test_that("disambiguate_by_key", {
-  check("disambiguate_by_key: value_rank numbers by the value", identical(rank_dt[order(value), KEY_SEQ], c(1L, 2L, 3L)))
-})
-
-ties <- melt_dt(data.table(id = c("a", "a"), v = c(5, 5)))
-
-disambiguate_by_key(ties, "value_rank")
-
-test_that("disambiguate_by_key", {
-  check("disambiguate_by_key: value_rank breaks ties by arrival", setequal(ties$KEY_SEQ, c(1L, 2L)))
+  check("disambiguate_by_key: modifies by reference", "key_seq" %in% names(lx))
 })
 
 renamed <- melt_dt(dup)
 
-disambiguate_by_key(renamed, "rowid", seq.name = "SEQ")
+disambiguate_by_key(renamed, seq.name = "SEQ")
 
 test_that("disambiguate_by_key", {
   check("disambiguate_by_key: the sequence column can be renamed", "SEQ" %in% names(renamed))
   check_error("disambiguate_by_key: an unkeyed table", disambiguate_by_key(data.table(a = 1)), "no key")
-  check_error("disambiguate_by_key: an unknown method", disambiguate_by_key(melt_dt(dup), "guess"))
 })
 
 agg <- aggregate_by_key(melt_dt(dup))
@@ -116,4 +99,32 @@ test_that("aggregate_by_key", {
   )
   check_error("aggregate_by_key: an unkeyed table", aggregate_by_key(data.table(a = 1)), "no key")
   check_error("aggregate_by_key: an unknown stats option", aggregate_by_key(melt_dt(dup), stats = "mean"))
+})
+
+test_that("exact aggregation treats -0 as 0, as == does", {
+  zero <- aggregate_by_key(melt_dt(data.table(id = "a", v = 0)), stats = "exact")
+  minus <- aggregate_by_key(melt_dt(data.table(id = "a", v = -0)), stats = "exact")
+  expect_identical(zero$value_key, minus$value_key)
+})
+
+test_that("exact aggregation follows nan_is_na", {
+  na <- melt_dt(data.table(id = "a", v = NA_real_))
+  nan <- melt_dt(data.table(id = "a", v = NaN))
+  key_of <- function(l, ...) aggregate_by_key(l, stats = "exact", ...)$value_key
+  expect_identical(key_of(na), key_of(nan))
+  expect_false(identical(key_of(na, nan_is_na = FALSE), key_of(nan, nan_is_na = FALSE)))
+})
+
+test_that("exact aggregation does not depend on the order of NA and NaN", {
+  a <- melt_dt(data.table(id = c("a", "a"), v = c(NA, NaN)))
+  b <- melt_dt(data.table(id = c("a", "a"), v = c(NaN, NA)))
+  key_of <- function(l) aggregate_by_key(l, stats = "exact", nan_is_na = FALSE)$value_key
+  expect_identical(key_of(a), key_of(b))
+})
+
+test_that("with no value column, aggregation counts the rows", {
+  wide <- index_dt(data.table(ID = c("a", "a", "b")), "ID")
+  out <- aggregate_by_key(wide, stats = "exact")
+  expect_identical(names(out), c("ID", "n_rows"))
+  expect_identical(out$n_rows, c(2L, 1L))
 })

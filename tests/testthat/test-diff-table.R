@@ -120,7 +120,7 @@ t8 <- diff_table(x8, y8)
 test_that("diff_table", {
   check("8) duplicates = 'disambiguate' pairs rows by arrival order", nrow(t8) == 3L)
   check("8) and finds the change", sum(t8$status == "changed") == 1L)
-  check("8) the rows carry their sequence number", "KEY_SEQ" %in% names(t8))
+  check("8) the rows carry their sequence number", "key_seq" %in% names(t8))
 })
 
 t8a <- diff_table(x8, y8, duplicates = "aggregate")
@@ -179,7 +179,6 @@ test_that("diff_table", {
   check_error("11) refuses a non-table", diff_table(x3, 1:3))
   check_error("11) an unknown mode", diff_table(x3, x3, mode = "sideways"))
   check_error("11) an unknown duplicates option", diff_table(x3, x3, duplicates = "ignore"))
-  check_error("11) nothing to measure", diff_table(data.table(id = "a"), data.table(id = "a")), "no columns of type")
 })
 
 # 13) the baseline has to be in the baseline types
@@ -215,11 +214,11 @@ msg13b <- tryCatch(
 
 test_that("diff_table", {
   check("13) normalize_dt reports every column it cannot convert", grepl("z (complex), w (complex)", msg13b, fixed = TRUE))
-  check("13) and stays quiet about the ones it can", !grepl("POSIXct", tryCatch(normalize_dt(x13m), error = function(e) conditionMessage(e))))
-  check("13) converting the baseline first makes it work", all(diff_table(normalize_dt(x13), copy(x13))$status == "same"))
+  check("13) and stays quiet about the ones it can", !grepl("POSIXct", tryCatch(normalize_dt(x13m, to = c(POSIXct = "Date")), error = function(e) conditionMessage(e))))
+  check("13) converting the baseline first makes it work", all(diff_table(normalize_dt(x13, to = c(POSIXct = "Date")), copy(x13))$status == "same"))
   check(
     "13) a POSIXct candidate needs no conversion of its own",
-    all(diff_table(normalize_dt(x13), data.table(t = as.POSIXct(c("2024-01-01 22:00", "2024-01-02 22:00"), tz = "UTC"), v = c(1, 2)))$status == "same")
+    all(diff_table(normalize_dt(x13, to = c(POSIXct = "Date")), data.table(t = as.POSIXct(c("2024-01-01 22:00", "2024-01-02 22:00"), tz = "UTC"), v = c(1, 2)))$status == "same")
   )
   check(
     "13) a Date baseline still converts a POSIXct candidate in its own zone",

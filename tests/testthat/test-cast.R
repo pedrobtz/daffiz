@@ -57,8 +57,8 @@ if (!all(refused_ok$ok)) print(refused_ok[ok == FALSE])
 test_that("cast_value: the details of each conversion", {
   check("cast_value: same type is returned untouched", identical(cast_value(3L, "integer", "col"), 3L))
   check("cast_value: text to number", cast_value("1.5", "numeric", "col") == 1.5)
-  check("cast_value: text to integer truncates toward zero", identical(cast_value("3.7", "integer", "col"), 3L))
-  check("cast_value: negative truncation is toward zero too", identical(cast_value("-3.7", "integer", "col"), -3L))
+  check("cast_value: text to integer truncates toward zero", cast_value("3.7", "integer", "col") == 3L)
+  check("cast_value: negative truncation is toward zero too", cast_value("-3.7", "integer", "col") == -3L)
   check("cast_value: text to date", cast_value("2024-03-05", "Date", "col") == as.Date("2024-03-05"))
   check("cast_value: text to logical, long form", identical(cast_value(c("TRUE", "FALSE"), "logical", "col"), c(TRUE, FALSE)))
   check("cast_value: text to logical, short form", identical(cast_value(c("T", "F"), "logical", "col"), c(TRUE, FALSE)))
@@ -172,7 +172,7 @@ x_ref <- data.table(id = 1L, score = 1.5, day = as.Date("2024-01-01"), flag = TR
 
 y_cand <- data.table(id = "2", score = "3.5", day = as.POSIXct("2024-01-02 23:30:00", tz = "UTC"), flag = "FALSE")
 
-cast_dt(x_ref, y_cand)
+suppressMessages(cast_dt(x_ref, y_cand))
 
 test_that("cast_dt", {
   check("cast_dt: casts every shared column to x's type", identical(summarize_dt(y_cand)$type, summarize_dt(x_ref)$type))
@@ -211,26 +211,27 @@ test_that("cast_dt", {
 })
 
 test_that("normalize_dt", {
-  check("NORMALIZE_TO: covers every source type that is not a target type", setequal(names(NORMALIZE_TO), setdiff(CAST_FROM, CAST_TYPES)))
+  check("NORMALIZE_TO: only a factor has a default", identical(NORMALIZE_TO, c(factor = "character")))
   check("NORMALIZE_TO: every target is a baseline type", all(NORMALIZE_TO %in% CAST_TYPES))
 })
 
 stamps <- data.table(t = as.POSIXct(c("2024-01-01 10:00", "2024-01-02 10:00"), tz = "UTC"), v = c(1, 2))
 
-b1 <- normalize_dt(stamps)
+b1 <- normalize_dt(stamps, to = c(POSIXct = "Date"))
 
 test_that("normalize_dt", {
-  check("normalize_dt: POSIXct becomes a Date by default", col_type(b1$t) == "Date")
+  check("normalize_dt: POSIXct becomes a Date when asked", col_type(b1$t) == "Date")
+  check_error("normalize_dt: a POSIXct has no default target", normalize_dt(stamps), "t \\(POSIXct\\)")
   check("normalize_dt: on the day the stamp prints", b1$t[1L] == as.Date("2024-01-01"))
   check("normalize_dt: a baseline column is untouched", identical(b1$v, stamps$v))
   check("normalize_dt: the input is not modified", col_type(stamps$t) == "POSIXct")
   check(
     "normalize_dt: the day is taken in the stamp's own zone, not UTC",
-    normalize_dt(data.table(t = as.POSIXct("2024-01-01 23:30:00", tz = "Europe/Lisbon")))$t == as.Date("2024-01-01")
+    normalize_dt(data.table(t = as.POSIXct("2024-01-01 23:30:00", tz = "Europe/Lisbon")), to = c(POSIXct = "Date"))$t == as.Date("2024-01-01")
   )
   check(
     "normalize_dt: dropping the time can merge two stamps into one day",
-    uniqueN(normalize_dt(data.table(t = as.POSIXct(c("2024-01-01 01:00", "2024-01-01 23:00"), tz = "UTC")))$t) == 1L
+    uniqueN(normalize_dt(data.table(t = as.POSIXct(c("2024-01-01 01:00", "2024-01-01 23:00"), tz = "UTC")), to = c(POSIXct = "Date"))$t) == 1L
   )
   check(
     "normalize_dt: `to` overrides that, keeping the full stamp",
@@ -244,11 +245,96 @@ clean <- data.table(id = "a", v = 1)
 
 test_that("normalize_dt", {
   check("normalize_dt: a table already in baseline types comes back as is", identical(normalize_dt(clean), clean))
-  check("normalize_dt: zero rows", nrow(normalize_dt(stamps[0])) == 0L)
+  check("normalize_dt: zero rows", nrow(normalize_dt(stamps[0], to = c(POSIXct = "Date"))) == 0L)
+  check("normalize_dt: keeps no truncation record", is.null(attr(b1$t, "truncated")))
   check_error("normalize_dt: an unmapped type is refused, not guessed", normalize_dt(data.table(z = complex(real = 1))), "no conversion given")
   check_error("normalize_dt: the refusal names the column and its type", normalize_dt(data.table(z = complex(real = 1))), "z \\(complex\\)")
   check_error("normalize_dt: an empty `to` refuses everything unconvertible", normalize_dt(stamps, to = character()), "no conversion given")
   check_error("normalize_dt: a target with no cast rule", normalize_dt(stamps, to = c(POSIXct = "logical")), "no sound conversion")
   check_error("normalize_dt: an unknown column", normalize_dt(stamps, cols = "nope"), "unknown column")
   check_error("normalize_dt: refuses a non-table", normalize_dt(1:3))
+})
+
+test_that("truncate = FALSE refuses every cast that drops a fraction", {
+  expect_error(cast_value(1.7, "integer", "N", truncate = FALSE), "not a whole number", class = "daffiz_error_cast")
+  expect_error(cast_value("3.7", "integer", "N", truncate = FALSE), "character -> integer, not a whole number")
+  expect_error(cast_value(1.5, "Date", "D", truncate = FALSE), "not a whole day")
+  expect_error(
+    cast_value(as.POSIXct("2024-01-01 10:00", tz = "UTC"), "Date", "D", truncate = FALSE),
+    "has a time of day"
+  )
+  expect_error(
+    cast_value(as.POSIXct(90.5, tz = "UTC"), "integer", "S", truncate = FALSE),
+    "not a whole number"
+  )
+  # Exact values pass either way.
+  expect_identical(cast_value(c(1, 2), "integer", "N", truncate = FALSE), c(1L, 2L))
+  expect_equal(
+    cast_value(as.POSIXct("2024-01-01", tz = "UTC"), "Date", "D", truncate = FALSE),
+    as.Date("2024-01-01")
+  )
+})
+
+test_that("a truncating cast records what it dropped", {
+  out <- cast_value(c(1.7, 2, -3.7, 1.7), "integer", "N")
+  expect_identical(as.vector(out), c(1L, 2L, -3L, 1L))
+  rec <- attr(out, "truncated")
+  expect_identical(rec$n, 3L)
+  # One example per distinct value.
+  expect_identical(rec$examples, c("1.7 -> 1", "-3.7 -> -3"))
+  expect_null(attr(cast_value(c(1, 2), "integer", "N"), "truncated"))
+})
+
+test_that("a number becomes the Date it prints as, never a fractional one", {
+  d <- cast_value(c(1.5, -0.5), "Date", "D")
+  expect_identical(as.numeric(d), c(1, -1))
+  expect_identical(format(d), c("1970-01-02", "1969-12-31"))
+})
+
+test_that("a stamp with no zone is read as UTC, whatever the session's zone", {
+  stamp <- as.POSIXct("2024-01-01 23:30:00", tz = "UTC")
+  attr(stamp, "tzone") <- ""
+  old_tz <- Sys.getenv("TZ")
+  on.exit(Sys.setenv(TZ = old_tz))
+  Sys.setenv(TZ = "Asia/Tokyo")
+  expect_equal(as.vector(cast_value(stamp, "Date", "D")), as.Date("2024-01-01"))
+})
+
+test_that("NaN becomes NA only when they are the same missing value", {
+  expect_true(is.na(cast_value(NaN, "integer", "N")))
+  expect_error(cast_value(NaN, "integer", "N", nan_is_na = FALSE), "NaN", class = "daffiz_error_cast")
+  expect_error(cast_value(NaN, "Date", "D", nan_is_na = FALSE), "NaN")
+  # Text keeps NaN as "NaN", so there is nothing to refuse.
+  expect_identical(cast_value(NaN, "character", "C", nan_is_na = FALSE), "NaN")
+})
+
+test_that("cast_dt reports truncation once, as a message with a record", {
+  x <- data.table(a = 1L, b = 1L, c = "k")
+  y <- data.table(a = c(1.7, 2), b = c("3.2", "3.2"), c = "k")
+  expect_message(cast_dt(x, y), class = "daffiz_message_truncation")
+  rec <- attr(y, "truncated")
+  expect_identical(rec$column, c("a", "b"))
+  expect_identical(rec$n, c(1L, 2L))
+  expect_identical(rec$examples, c("1.7 -> 1", "3.2 -> 3"))
+})
+
+test_that("cast_dt is quiet, with an empty record, when nothing was truncated", {
+  y <- data.table(a = c(1, 2))
+  expect_no_message(cast_dt(data.table(a = 1L), y))
+  expect_identical(nrow(attr(y, "truncated")), 0L)
+})
+
+test_that("cast_dt with truncate = FALSE refuses before writing anything", {
+  y <- data.table(a = c("1", "2"), b = c(1.5, 2))
+  before <- copy(y)
+  expect_error(cast_dt(data.table(a = 1L, b = 1L), y, truncate = FALSE), "column b")
+  expect_identical(y, before)
+})
+
+test_that("cast_dt names columns by their labels in messages", {
+  y <- data.table(AMOUNT = "x")
+  expect_error(
+    cast_dt(data.table(AMOUNT = 1), y, labels = c(AMOUNT = "\"amount\" (AMOUNT)")),
+    "column \"amount\" \\(AMOUNT\\)"
+  )
 })

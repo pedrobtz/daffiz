@@ -97,8 +97,8 @@ diff_table <- function(x, y, mode = c("in_place", "new"),
         call. = FALSE
       )
     }
-    disambiguate_by_key(lx, "rowid")
-    disambiguate_by_key(ly, "rowid")
+    disambiguate_by_key(lx)
+    disambiguate_by_key(ly)
   }
 
   on <- c(key(lx), intersect("metric", names(lx)))

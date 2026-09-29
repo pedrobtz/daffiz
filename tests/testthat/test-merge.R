@@ -158,3 +158,10 @@ test_that("merge_dt", {
   )
   check_error("merge_dt: an unknown mode", merge_dt(kx, ky, mode = "sideways"))
 })
+
+test_that("the refusal of a fanout past 2^31 can still be written", {
+  big <- 46341L
+  bx <- setkey(data.table(id = rep(1L, big)), id)
+  err <- expect_error(merge_dt(bx, copy(bx)), class = "daffiz_error_keys")
+  expect_match(conditionMessage(err), "46,341 rows would become 2,147,488,281", fixed = TRUE)
+})

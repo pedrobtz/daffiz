@@ -25,13 +25,19 @@
 #'   \code{max_fanout}, \code{dups_x}, \code{dups_y} and \code{one_to_one}.
 #' @noRd
 merge_dry_run <- function(x, y, on = key(x)) {
-  stopifnot(is.data.table(x), is.data.table(y))
+  if (!is.data.table(x) || !is.data.table(y)) {
+    daffiz_abort("daffiz_error_input", "`x` and `y` must be data.tables")
+  }
   if (!length(on)) {
-    stop("no columns to join on", call. = FALSE)
+    daffiz_abort("daffiz_error_keys", "no columns to join on")
   }
   missing_cols <- setdiff(on, intersect(names(x), names(y)))
   if (length(missing_cols)) {
-    stop("not in both tables: ", paste(missing_cols, collapse = ", "), call. = FALSE)
+    daffiz_abort(
+      "daffiz_error_columns",
+      paste0("not in both tables: ", paste(missing_cols, collapse = ", ")),
+      columns = missing_cols
+    )
   }
 
   # Count rows per key on each side, then join those counts: the join runs over
@@ -101,21 +107,27 @@ merge_dry_run <- function(x, y, on = key(x)) {
 #' @noRd
 merge_dt <- function(x, y, on = key(x), mode = c("new", "in_place"),
                      all = FALSE, suffix = "_y") {
-  stopifnot(is.data.table(x), is.data.table(y))
+  if (!is.data.table(x) || !is.data.table(y)) {
+    daffiz_abort("daffiz_error_input", "`x` and `y` must be data.tables")
+  }
   mode <- match.arg(mode)
 
   dry <- merge_dry_run(x, y, on = on)
   if (!dry$one_to_one) {
-    stop(
-      sprintf(
-        paste0(
-          "keys are not one to one: %d rows would become %d ",
-          "(max fanout %d; %d duplicate key(s) in x, %d in y). ",
-          "Use disambiguate_by_key() or aggregate_by_key() first."
-        ),
-        dry$rows_x, dry$est_merge_rows, dry$max_fanout, dry$dups_x, dry$dups_y
+    # format(), not %d: the merged size and the fanout are doubles, precisely
+    # because they can pass 2^31, and sprintf("%d") refuses a double that
+    # large -- so the message for the join most worth refusing would itself
+    # fail to build.
+    n <- function(v) format(v, big.mark = ",", scientific = FALSE)
+    daffiz_abort(
+      "daffiz_error_keys",
+      paste0(
+        "keys are not one to one: ", n(dry$rows_x), " rows would become ",
+        n(dry$est_merge_rows), " (max fanout ", n(dry$max_fanout), "; ",
+        n(dry$dups_x), " duplicate key(s) in x, ", n(dry$dups_y), " in y). ",
+        "Use disambiguate_by_key() or aggregate_by_key() first."
       ),
-      call. = FALSE
+      dry_run = dry
     )
   }
 
@@ -127,12 +139,13 @@ merge_dt <- function(x, y, on = key(x), mode = c("new", "in_place"),
   taken <- unique(targets[targets %in% names(x)])
   if (length(taken) || anyDuplicated(targets)) {
     clash <- unique(c(taken, targets[duplicated(targets)]))
-    stop(
+    daffiz_abort(
+      "daffiz_error_columns",
       sprintf(
         "suffix \"%s\" would write over existing column(s): %s. Pick another suffix.",
         suffix, paste(clash, collapse = ", ")
       ),
-      call. = FALSE
+      columns = clash
     )
   }
 

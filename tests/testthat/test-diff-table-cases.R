@@ -105,10 +105,10 @@ test_that("types", {
   check("integers are ids by default, so CNT is an identity",
     is_tally(diff_table(A, B_int), same = 3L, only_x = 1L, only_y = 1L))
   # Melting an integer column alongside a double one puts both in one value
-  # column, so CNT widens to double. melt() says so, and it should keep saying so.
-  check_warns("measures = numeric+integer makes CNT a measure",
-    is_tally(diff_table(A, B_int, measures = "numeric+integer"), same = 7L, changed = 1L),
-    "not all of the same type")
+  # column, so CNT widens to double -- promoted up front, so melt() has no
+  # reason to warn about it.
+  check_clean("measures = numeric+integer makes CNT a measure",
+    is_tally(diff_table(A, B_int, measures = "numeric+integer"), same = 7L, changed = 1L))
 })
 
 B_wide <- copy(A)[, NOTE := "hi"]

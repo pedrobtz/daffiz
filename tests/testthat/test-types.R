@@ -10,6 +10,15 @@ test_that("col_type", {
   check("col_type: POSIXct before its storage mode", col_type(Sys.time()) == "POSIXct")
   check("col_type: factor is itself, not integer", col_type(factor("a")) == "factor")
   check("col_type: anything else falls back to its class", col_type(complex(real = 1)) == "complex")
+  check("col_type: an IDate is a Date", col_type(as.IDate("2024-01-01")) == "Date")
+})
+
+test_that("col_type names integer64 for what it is, not as a number", {
+  skip_if_not_installed("bit64")
+  big <- bit64::as.integer64(c(1, 2))
+  expect_identical(col_type(big), "integer64")
+  # Not a cast type, so a reference column of it is refused, not misread.
+  expect_error(cast_dt(data.table(id = big), data.table(id = "1")), class = "daffiz_error_types")
 })
 
 test_that("cast rules table", {
@@ -32,4 +41,13 @@ test_that("cast rules table", {
   check("cast_rules(): the diagonal reads '='", w[from == "integer", integer] == "=")
   check("cast_rules(): an allowed pair reads 'yes'", w[from == "integer", numeric] == "yes")
   check("cast_rules(): a refused pair reads '-'", w[from == "integer", logical] == "-")
+})
+
+test_that("the truncating casts say so in their notes", {
+  rules <- cast_rules(wide = FALSE)
+  truncating <- rules[grepl("truncate = FALSE", note), paste(from, to)]
+  expect_setequal(truncating, c(
+    "character integer", "Date integer", "numeric integer", "POSIXct integer",
+    "numeric Date", "POSIXct Date"
+  ))
 })

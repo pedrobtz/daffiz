@@ -12,11 +12,13 @@
 #'   \code{"duplicates"} attribute.
 #' @noRd
 unique_by_key <- function(dt, along = "metric") {
-  stopifnot(is.data.table(dt))
+  if (!is.data.table(dt)) {
+    daffiz_abort("daffiz_error_input", "`dt` must be a data.table")
+  }
 
   k <- key(dt)
   if (!length(k)) {
-    stop("`dt` has no key to check", call. = FALSE)
+    daffiz_abort("daffiz_error_keys", "`dt` has no key to check")
   }
 
   by <- c(k, intersect(along, names(dt)))
@@ -34,35 +36,33 @@ unique_by_key <- function(dt, along = "metric") {
 #' include it. See \code{aggregate_by_key()} for the variant that invents
 #' nothing.
 #'
+#' Rows are numbered in arrival order. That is stable when values change, so a
+#' changed row keeps its number; it moves only if rows are reordered, and then
+#' the comparison reports changes rather than hiding them. Numbering by value
+#' instead would pair rows so as to minimise the differences, and ranking within
+#' each measure would pair a different source row for each measure.
+#'
+#' \code{diff_table()} numbers the wide table, one row per source row, before
+#' melting, so a row keeps one number across all its measures by construction.
+#' On a melted table the numbering runs within each measure (\code{along}).
+#'
 #' @param long A keyed data.table, modified by reference.
-#' @param method \code{"rowid"} numbers rows in arrival order. Stable when
-#'   values change, so a fuzzed row keeps its number; it moves only if rows are
-#'   reordered. \code{"value_rank"} numbers rows by the measured value
-#'   (\code{frank}, ties broken by arrival). Convenient, but the identity is
-#'   derived from the data being compared: change a value and the numbering can
-#'   flip, pairing the wrong rows in a later join. Use it when you mean "match
-#'   the values in sorted order".
 #' @param by The key columns to number within.
 #' @param along Names the measure column, grouped on alongside the key.
-#' @param value.name The value column, read by \code{method = "value_rank"}.
 #' @param seq.name Name of the sequence column to add.
 #' @return \code{long}, invisibly, re-keyed on \code{by} plus \code{seq.name}.
 #' @noRd
-disambiguate_by_key <- function(long, method = c("rowid", "value_rank"),
-                                by = key(long), along = "metric",
-                                value.name = "value", seq.name = "KEY_SEQ") {
-  stopifnot(is.data.table(long))
-  method <- match.arg(method)
+disambiguate_by_key <- function(long, by = key(long), along = "metric",
+                                seq.name = "key_seq") {
+  if (!is.data.table(long)) {
+    daffiz_abort("daffiz_error_input", "`long` must be a data.table")
+  }
   if (!length(by)) {
-    stop("no key to disambiguate by", call. = FALSE)
+    daffiz_abort("daffiz_error_keys", "no key to disambiguate by")
   }
 
   grp <- c(by, intersect(along, names(long)))
-  if (method == "rowid") {
-    long[, (seq.name) := seq_len(.N), by = grp]
-  } else {
-    long[, (seq.name) := frank(get(value.name), ties.method = "first"), by = grp]
-  }
+  long[, (seq.name) := seq_len(.N), by = grp]
 
   setkeyv(long, c(by, seq.name))
   invisible(long)
@@ -77,6 +77,8 @@ disambiguate_by_key <- function(long, method = c("rowid", "value_rank"),
 #' an identity.
 #'
 #' NAs are counted rather than dropped, so a group that gained one is visible.
+#' Without a value column -- a table with no measures -- only the rows are
+#' counted, which compares the two tables as multisets of rows.
 #'
 #' @param long A keyed data.table.
 #' @param by The key columns to group by.
@@ -89,21 +91,30 @@ disambiguate_by_key <- function(long, method = c("rowid", "value_rank"),
 #'   as its values in hex float (\code{\%a}, which round-trips exactly) sorted
 #'   and pasted. Two groups compare equal only if they hold exactly the same
 #'   values. Use it for "same or not".
+#' @param nan_is_na For \code{"exact"}: whether NaN and NA are the same missing
+#'   value. \code{\%a} writes them differently, so NaN is mapped to NA first.
 #' @return A data.table keyed by \code{by}, one row per key group and measure.
 #' @noRd
 aggregate_by_key <- function(long, by = key(long), along = "metric",
                              value.name = "value",
-                             stats = c("moments", "exact")) {
-  stopifnot(is.data.table(long))
+                             stats = c("moments", "exact"),
+                             nan_is_na = TRUE) {
+  if (!is.data.table(long)) {
+    daffiz_abort("daffiz_error_input", "`long` must be a data.table")
+  }
   stats <- match.arg(stats)
   if (!length(by)) {
-    stop("no key to aggregate by", call. = FALSE)
+    daffiz_abort("daffiz_error_keys", "no key to aggregate by")
+  }
+
+  grp <- c(by, intersect(along, names(long)))
+  if (!value.name %in% names(long)) {
+    return(setkeyv(long[, .(n_rows = .N), by = grp], by)[])
   }
 
   # min/max of an all-NA group is -Inf/Inf with a warning; report NA instead.
   safe <- function(f, v) if (all(is.na(v))) NA_real_ else f(v[!is.na(v)])
 
-  grp <- c(by, intersect(along, names(long)))
   # The branch stays outside [: j must yield the same columns for every group.
   out <- if (stats == "moments") {
     long[, {
@@ -119,11 +130,19 @@ aggregate_by_key <- function(long, by = key(long), along = "metric",
     }, by = grp]
   } else {
     long[, {
-      v <- get(value.name)
+      # `+ 0` turns -0 into 0, which `==` already treats as equal but `%a`
+      # writes differently. The encoded strings are sorted, not the values:
+      # sort() leaves NA and NaN in arrival order among themselves, so the
+      # same multiset could otherwise encode two ways. Radix sorting is in the
+      # C locale, so the encoding does not depend on the session either.
+      v <- get(value.name) + 0
+      if (nan_is_na) {
+        v[is.nan(v)] <- NA_real_
+      }
       .(
         n_rows = .N,
         n_na = sum(is.na(v)),
-        value_key = paste(sprintf("%a", sort(v, na.last = TRUE)), collapse = "|")
+        value_key = paste(sort(sprintf("%a", v), method = "radix"), collapse = "|")
       )
     }, by = grp]
   }

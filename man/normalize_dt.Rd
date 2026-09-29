@@ -2,37 +2,43 @@
 % Please edit documentation in R/cast.R
 \name{normalize_dt}
 \alias{normalize_dt}
-\title{Convert a table to the baseline column types}
+\title{Convert a table to the types daffiz compares}
 \usage{
 normalize_dt(dt, to = NORMALIZE_TO, cols = names(dt))
 }
 \arguments{
-\item{dt}{A data.frame (or data.table).}
+\item{dt}{A data.frame or data.table.}
 
-\item{to}{Named character: which baseline type each non-baseline type
-becomes. Defaults to \code{NORMALIZE_TO}. A column whose type is not named
-here is an error, not a guess.}
+\item{to}{Named character: which supported type each other type becomes.
+The default only maps \code{factor} to \code{"character"}. A column whose type is
+not named here is an error, not a guess.}
 
 \item{cols}{The columns to consider, by default all of them.}
 }
 \value{
-A data.table. \code{dt} is never modified; a copy is made only when
-there is something to convert, so the result is \code{dt} itself when there
-is not, and callers must treat it as read-only.
+A \code{data.table}. \code{dt} is never modified; a copy is made only when
+there is something to convert, so the result is \code{dt} itself when there is
+not, and callers must treat it as read-only.
 }
 \description{
-Casts every column that is not already one of \code{CAST_TYPES} -- the types
-the comparison works in -- according to \code{to}. Columns that are already
-baseline types are left exactly as they are.
+\code{\link[=diff_table]{diff_table()}} compares columns of five types: character, logical, Date,
+numeric (double) and integer. In \code{mode = "benchmark"} the benchmark \code{x} must
+already hold only those; in \code{mode = "equal"} both tables must. This converts
+the columns that are something else, explicitly, so that any lossy
+conversion is the caller's choice and not a silent default.
 }
 \details{
-\code{diff_table()} takes its target types from the baseline \code{x}, so
-\code{x} has to be expressible in them; it refuses a table that is not
-rather than guessing. This is the function that makes one so, run explicitly
-so the lossy conversions are the caller's choice and not a silent default.
-
-The default POSIXct to Date conversion is lossy: it keeps the calendar day
-in the stamp's own timezone and drops the time, so two stamps on the same
-day become one value. Pass \code{to = c(POSIXct = "character")} to keep the
-full stamp instead, or convert that column yourself beforehand.
+A factor becomes its labels by default. A timestamp (POSIXct) has no
+default: \code{c(POSIXct = "Date")} keeps the calendar day in the stamp's own
+zone and drops the time, so two stamps on the same day become one value;
+\code{c(POSIXct = "character")} keeps the full stamp as text. Name the one you
+mean in \code{to}.
+}
+\examples{
+x <- data.frame(
+  day = as.POSIXct("2024-01-01 10:00", tz = "UTC"),
+  kind = factor("a"),
+  amount = 1.5
+)
+normalize_dt(x, to = c(POSIXct = "Date", factor = "character"))
 }
