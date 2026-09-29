@@ -2,7 +2,9 @@
 
 export(cast_rules)
 export(compare_columns)
+export(diff_summary)
 export(diff_table)
+export(expect_table_equal)
 export(normalize_dt)
 import(data.table)
 importFrom(utils,head)
