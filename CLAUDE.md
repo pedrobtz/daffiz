@@ -4,33 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`daffiz` is an early-stage R package building a more complete and flexible
-data.frame/data.table comparison tool. Only a first draft exists; nothing is
-API-stable and everything in `R/` is open to being rewritten.
+`daffiz` is a small R package around one function, `diff_table()`, which
+compares two tables value by value, plus a few helpers (`diff_summary()`,
+`expect_table_equal()`, `compare_columns()`, `normalize_dt()`,
+`cast_rules()`).
 
-The design documents that used to live in `docs/` (design-plan, roadmap,
-state-of-the-art, features) have been removed; `docs/` is now the generated
-pkgdown site and is `.Rbuildignore`d. Design rationale now lives where it is
-enforced: in the comments above each stage in `R/`, in `NEWS.md`, and in the
-"Load-bearing details" list below. Comments in this codebase carry reasoning
-that is not recoverable from the code — read them before rewriting a stage.
+Version 0.1.0 was rebuilt around the core in `.agents/compare.R`. Its planning
+documents live in `.agents/`:
 
-## Current state
+- `plan.md`: what 0.1.0 is;
+- `core-review.md`: the findings (F1–F8, D-a…D-h) the rebuild fixed;
+- `roadmap.md`: the features of the earlier draft that were dropped, where
+  their code lives, and how to re-add them.
 
-Phases 0 through 3 of the roadmap are implemented. Version 0.1.0 is the V1
-release boundary: `R CMD check --as-cran` reports no errors or warnings (only
-the expected "New submission" note), with 140 test cases and 458 passing
-expectations. The canonical melted comparison table is correct and traceable to
-both inputs, and its column, row, and original-row views reconcile with the
-cell records.
+The draft is tagged `draft-0.1.0`; read any of its files with
+`git show draft-0.1.0:R/<file>`. `.agents/` is `.Rbuildignore`d.
 
-`compare_dt()` returns a `daffiz_comparison` object. The V1 public surface is
-`compare_dt()`, `daffiz_row_number()`, cell/column/row accessors, original-row
-recovery, side-only rows, duplicate diagnostics, `summary()`/`print()`/`plot()`,
-`all.equal()`, `expect_dt_equal()`, and `plot_data()`/`plot_diff()`.
+Comments in `R/` carry reasoning that is not recoverable from the code. Read
+them before rewriting a function.
 
 Do not claim the package "checks cleanly" without re-running
 `R CMD check --as-cran` on a fresh tarball; that claim was wrong once already.
+Two NOTEs are expected: "New submission", and "unable to verify current time"
+when the machine cannot reach a time server.
 
 ## Commands
 
@@ -39,134 +35,132 @@ Standard `devtools` workflow, run from the package root:
 ```r
 devtools::load_all()      # load without installing
 devtools::document()      # regenerate NAMESPACE + man/ from roxygen
-devtools::test()          # run testthat suite (once tests/ exists)
+devtools::test()          # run the testthat suite
 devtools::check()         # full R CMD check
 ```
 
-Run a single test file or a single test:
+Run one test file:
 
 ```r
-devtools::test(filter = "compare")            # runs tests/testthat/test-compare*.R
-testthat::test_file("tests/testthat/test-compare.R")
+devtools::test(filter = "diff-table")         # tests/testthat/test-diff-table*.R
+testthat::test_file("tests/testthat/test-cast.R")
 ```
 
 From the shell:
 
 ```sh
-R -q -e 'devtools::check()'
-R CMD build . && R CMD check daffiz_*.tar.gz
+R CMD build . && R CMD check --as-cran daffiz_*.tar.gz
 ```
 
 ## Architecture
 
-`compare_dt()` runs the design plan's section 11 pipeline. Each stage lives in
-its own file and is independently testable:
+`diff_table()` runs a 13-step pipeline, numbered in its body. Each helper it
+calls lives in its own file and is tested on its own:
 
 | File | Responsibility |
 |---|---|
-| `R/daffiz-package.R` | Reserved column names, `.match_type` factor levels, `data.table` awareness |
-| `R/conditions.R` | Subclassed conditions (`daffiz_error_*`, `daffiz_warning_*`) and message formatting |
-| `R/preflight.R` | Gates 1–4, 6–7, 9–10 (alignment) |
-| `R/resolve-columns.R` | Role resolution and gates 5, 8; `daffiz_row_number()` |
-| `R/duplicates.R` | Duplicate detection and the `pair`/`report`/`error` policies |
-| `R/batching.R` | Transparent measure batching during melt/join construction |
-| `R/compare-dt.R` | Entry point, snapshots, melt/join, `classify_cells()` |
-| `R/comparison.R` | The S3 object and its accessors |
-| `R/accessors-cells.R` | Filtered auditable cell records |
-| `R/accessors-columns.R` | Per-measure summaries and ranking |
-| `R/accessors-rows.R` | Per-record summaries and original-row recovery |
-| `R/key-profile.R` | Identity profiles for unmatched rows |
-| `R/report.R` | Bounded structured and printed reports |
-| `R/expectations.R` | The testthat regression expectation |
-| `R/plot.R` | Difference-map data and the optional `ggplot2` view |
+| `R/diff-table.R` | `diff_table()`: arguments, names, columns per mode, types, roles, index, duplicates, alignment, melt, merge, classification |
+| `R/names.R` | `canonical_names()`, `name_map()`, `check_names()`, `shallow_dt()` |
+| `R/types.R` | `col_type()`, the only type vocabulary; `CAST_RULES`; `cast_rules()` |
+| `R/cast.R` | `cast_value()`, `cast_dt()` (truncation record and message), `normalize_dt()` |
+| `R/columns.R` | `summarize_dt()`, `compare_columns()` |
+| `R/melt.R` | `select_measures()`, `index_dt()` (row numbers and key), `melt_dt()` |
+| `R/keys.R` | `unique_by_key()`, `disambiguate_by_key()`, `aggregate_by_key()` |
+| `R/merge.R` | `merge_dry_run()` (index-only, exact), `merge_dt()` (one-to-one only) |
+| `R/summary.R` | `diff_summary()`, `is_finite_pair()`, `scaled_rmse()` |
+| `R/expect.R` | `expect_table_equal()` |
+| `R/conditions.R` | `daffiz_abort()`, `daffiz_warn()`, `daffiz_inform()`, `fmt_names()` |
 
-Load-bearing details, each covered by a test:
+The tests in `test-types.R`, `test-cast.R`, `test-columns.R`, `test-melt.R`,
+`test-keys.R`, `test-merge.R`, `test-diff-table.R` and
+`test-diff-table-cases.R` were ported mechanically from `.agents/test.R` and
+`.agents/test-cases.R`. They use the `check()` helpers in `helper-check.R`,
+and the setup between their `test_that()` blocks runs at file level on
+purpose, because later checks reuse it. New tests are ordinary testthat
+(`test-diff-table-modes.R`, `test-names.R`, `test-summary.R`,
+`test-expect.R`).
 
-- **A comparison that aligns nothing is ill-formed, and gate 10 says so before
-  the melt.** Zero overlap means every cell would be `x_only`/`y_only` and
-  `n_compared` would be zero — almost always a wrong `by=` or a key-format
-  skew. It is also the case that builds the largest possible cell table
-  (`n_x + n_y` records), so the gate must precede construction, not follow it.
-  Two empty inputs are exempt: they are equal, not ill-formed. The threshold is
-  zero overlap, never a low-overlap heuristic. `disjoint_keys = "warn"` is the
-  opt-out for batch workflows.
-- **Gate order matters.** A column-set mismatch or a type mismatch must be
-  reported *before* duplicate detection or melting, because it usually means
-  the output contract changed and a partial numeric comparison would hide that.
-- **Working copies are deep copies.** A column subset of a `data.table` shares
-  its column vectors, so `setorderv()` during duplicate pairing would otherwise
-  reorder the snapshots by reference and break `.row_x`/`.row_y`.
-- **`.row_x`/`.row_y` are data, not join keys.** The join key is
-  `c(by, ".occurrence", ".metric")`, so rows at different original positions
-  still align.
-- **Classification order is the spec.** `classify_cells()` follows design plan
-  §6.2 exactly; each rule may assume the earlier ones did not fire, so the
-  tolerance comparison only ever sees two finite values.
-- **Default measures are *unclassed* doubles in _both_ inputs.** `is.double()`
-  alone is `TRUE` for `Date` and `POSIXct`, which are identity columns here.
-  Reading only `x` made role inference asymmetric: the same two tables errored
-  or compared depending on argument order. A column that is integer on one side
-  and double on the other is a "numeric type skew" and gets its own hint from
-  whichever gate fires first (6 or 8).
-- **Identity columns are allow-listed by type, not tested with `is.atomic()`.**
-  `is.atomic()` is `TRUE` for `complex` and `raw`, which data.table cannot join
-  on. See `daffiz_joinable_types`.
-- **`column_signature()` carries `levels` and `units`, but not `tzone`.** The
-  criterion is whether the attribute changes what an equal underlying value
-  means. `units` rescales a difftime; `tzone` does not move an instant.
-- **Role names must be unique.** A repeated `compare=` name melts the measure
-  twice and the join goes cartesian, silently multiplying every count.
-- **Magnitude statistics filter on the source values, not on `.diff`.** Two
-  finite operands can overflow to `Inf`; filtering the derived difference threw
-  that cell away and reported `max_abs_diff = 0` for the largest difference in
-  the table. See `is_finite_pair()` and `scaled_rmse()` in `R/comparison.R`.
-- **Working tables are shallow subsets; only duplicate pairing deep-copies.**
-  `setorderv()` is the one operation that writes through shared column vectors,
-  so `apply_duplicate_policy()` copies in its `"pair"` branch. Adding a column
-  or replacing a promoted integer measure only swaps a pointer, which is safe.
-- **Reporting uses `affected_row_summary()`, not `row_summary()`.** The public
-  `row_summary()` covers every record by contract; summarizing the all-equal
-  majority on the `print()` path cost an order of magnitude more than the
-  comparison itself.
-- **`expect_dt_equal()` defaults to `duplicate_keys = "error"`.** The
-  `compare_dt()` default of `"pair"` sorts each duplicated group by its measure
-  values, which minimizes apparent differences, so an assertion would pass on
-  tables that disagree row for row.
-- **Batching never changes the result model.** `batch=` limits measures in each
-  melt/join intermediate, but all equal and non-equal cells remain in the
-  canonical table and all accessors are byte-identical across batch sizes.
-- **The size projection must be double, not integer.** `nrow() * length()` are
-  both integers and overflow at about 2.1e9 cells, turning the guard's own
-  comparison into `if (NA)`. Test it with integer literals; doubles hide it.
-- **There is exactly one plot.** `R/plot.R` draws an Amelia-style difference
-  map and nothing else; measure and record diagnostics belong to the data
-  accessors. Rows stay in original source order — ranking them destroys the
-  positional band that is the whole point of the map — and truncation bins
-  contiguous rows rather than selecting the worst ones, so no row is dropped.
-- **Tile marks are ASCII.** A delta glyph raises "conversion failure in
-  mbcsToSbcs" on the default `pdf()` device, which is what `R CMD check`
-  renders examples to. The marks are a required redundant encoding, not
-  decoration: fill alone must never carry the classification.
-- **`plot()`'s `y` argument is a trap, and is now guarded.** It belongs to the
-  generic and is unused, so an unchecked positional second argument was
-  silently swallowed — `plot(cmp, "amount")` drew every measure.
+## Load-bearing details
 
-Test fixtures live in `tests/testthat/helper-fixtures.R` (`make_fixture()`,
-`simple_pair()`, `classify_one()`, `mixed_comparison()`), written in base R —
-the draft's `charlatan`-based generator is gone.
+Each is covered by a test.
+
+- **User column names are normalized to `A-Z`, `0-9` and `_`; every internal
+  column contains a lowercase letter.** That is what makes a collision
+  between the two impossible (`test-names.R` asserts it for every internal
+  name). A new internal column name must contain a lowercase letter. Names
+  that normalize to nothing, or to the same thing within one table, are an
+  error for the caller to fix, never suffixed or guessed.
+- **The caller's tables are never modified.** `shallow_dt()` shares the
+  caller's column vectors, so later steps may *replace* a column
+  (`set(j = , value = )` swaps a pointer) but never write into one.
+  `index_dt()` copies the columns it keeps, because `setkeyv()` reorders rows
+  in place, writing into the vectors.
+- **Benchmark mode drops `y`'s extra columns before anything else.** The
+  core's final `setnames(..., "_x")` relabels every column carried from `y`,
+  so a `y`-only column that reached the merge came out named as `x`'s.
+- **Truncating casts are allowed by default, and announced by a message, not
+  a warning.** The benchmark's types are the truth: Spark, ADLS and Delta turn
+  a locally built double into an integer, and the comparison has to follow.
+  A warning would fail `expect_no_warning()` pipelines on this expected path.
+  `truncate = FALSE` refuses the cast instead.
+- **Duplicates are checked and numbered on the wide table, before the melt.**
+  The answer is the same as on the melted table, the work is smaller by the
+  number of measures, and `key_seq` is the same for every measure of a row.
+  The pairing warning fires only when there are measures: without them the
+  paired rows are identical in every compared column. `expect_table_equal()`
+  relies on exactly that, turning the warning into an error.
+- **Pairing is by arrival order, never by value.** Sorting by value pairs rows
+  so as to minimise differences and can pass tables that disagree; arrival
+  order can only produce false failures.
+- **A comparison that aligns nothing is refused before the melt.** Every row
+  would be `only_x`/`only_y`, which almost always means a wrong `by` or a
+  key-format skew, and it is the case that builds the largest table. Two
+  empty tables are exempt.
+- **Membership comes from `row_id` or `n_rows`, never from the value.** An NA
+  value says nothing about whether the row was there.
+- **Equality before tolerance.** `Inf - Inf` is NaN, so a tolerance test alone
+  calls two identical infinities a change.
+- **`nan_is_na` must act in three places**: value cells, the `%a` encoding of
+  `"aggregate"`, and double key columns. data.table joins and groups NA and
+  NaN as different keys (verified), so skipping the keys splits a row into
+  `only_x` + `only_y`.
+- **The `%a` multiset encoding sorts the encoded strings, in radix (C
+  locale) order, after `+ 0`.** `sort()` leaves NA and NaN in arrival order
+  among themselves, and `%a` writes `-0` and `0` differently.
+- **Magnitude statistics filter on the source values, not on `diff`.** Two
+  finite values can differ by more than the largest double; filtering the
+  difference drops that value and reports the largest difference as 0.
+  `scaled_rmse()` keeps squaring from overflowing.
+- **Counts that can pass 2^31 are doubles, and are never formatted with
+  `%d`.** `sprintf("%d", 3e9)` is an error, so the message for exactly the
+  fanout worth refusing would fail to build.
+- **Text dates before the year 1000 are refused, by reading the year off the
+  parsed date.** The format-back round trip alone is platform-dependent:
+  glibc writes year 24 as `"24"` under `%Y` (macOS writes `"0024"`), so
+  `"24-01-01"` passed on Linux only. CI caught it; macOS cannot reproduce it.
+- **`col_type()` is the only type vocabulary.** A second one (`class()[1]`)
+  made IDate and integer64 one type to one function and another to the next.
+- **A table is well-formed when it has at least one key column; it may have
+  no measures.** With no key, the error offers `row_key`, which adds a
+  lowercase `row_number` key: the position, or the rank after sorting by
+  every compared column. `"sorted"` sorts in radix (C locale) order with NaN
+  as NA, so both tables sort alike in any session. Compared exactly it can
+  only pair badly, never pass different rows.
+- **Measure keywords are lowercase; normalized names never are.** So
+  `measures = "numeric"` can never mean a column.
+- **`NORMALIZE_TO` has no POSIXct default.** Turning a stamp into a Date
+  drops the time and can make two keys one; the caller chooses.
 
 ## Conventions
 
 - `data.table` is the engine. Express comparisons as joins and grouped
-  operations; avoid row-wise R loops. Copy inputs (`copy()`) rather than
-  modifying a caller's table by reference.
-- Preserve the canonical melted numeric cell table; build column, row,
-  original-row, report, and visualization accessors from it.
-- Duplicate identities may use deterministic occurrence pairing by default,
-  but the result must report the heuristic and retain both original row indices.
-- Invalid calls (missing requested columns, incompatible join types, invalid
-  tolerances) should raise clearly — see the design plan.
-- `docs/`, `CLAUDE.md`, `.claude/`, `benchmarks/`, `inst/WORDLIST` and any
-  stray `Rplots.pdf` are listed in `.Rbuildignore`. A test or example that
-  calls `plot()` must open its own device; otherwise it leaves an `Rplots.pdf`
-  behind that ships in the tarball and earns a top-level-files NOTE.
+  operations; avoid row-wise R loops.
+- Conditions carry a `daffiz_*` class. An *error* means the question cannot
+  be answered; a *warning* means the answer may be wrong; a *message* reports
+  an expected consequence of the settings. Messages name columns in the
+  caller's own spelling (`name_map()$label`).
+- Keep the public surface small; new features go through `.agents/roadmap.md`
+  first.
+- `docs/`, `CLAUDE.md`, `.claude/`, `.agents/`, `benchmarks/` and
+  `inst/WORDLIST` are listed in `.Rbuildignore`. `benchmarks/` still measures
+  the draft's pipeline.

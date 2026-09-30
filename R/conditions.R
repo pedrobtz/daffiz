@@ -1,8 +1,13 @@
 # Structured conditions -------------------------------------------------------
 #
-# Every preflight gate raises a subclassed condition carrying structured fields
-# as well as readable text, so tests can verify which gate failed without
-# parsing an error message (design plan section 4.1).
+# Every condition daffiz raises carries a subclass as well as readable text, so
+# callers and tests can tell which check fired without parsing a message.
+#
+# The three kinds mean different things:
+# - an error: the question cannot be answered as asked;
+# - a warning: the answer may be wrong (identity was invented);
+# - a message: an expected consequence of the settings the caller chose
+#   (values truncated by a cast, columns dropped or ignored).
 
 daffiz_abort <- function(subclass, message, ...) {
   cond <- structure(
@@ -18,6 +23,15 @@ daffiz_warn <- function(subclass, message, ...) {
     list(message = message, call = NULL, ...)
   )
   warning(cond)
+}
+
+# message() prints conditionMessage() as is, so the newline is ours to add.
+daffiz_inform <- function(subclass, message, ...) {
+  cond <- structure(
+    class = c(subclass, "daffiz_message", "message", "condition"),
+    list(message = paste0(message, "\n"), call = NULL, ...)
+  )
+  message(cond)
 }
 
 # Formats a character vector for inclusion in a message, bounded so that a

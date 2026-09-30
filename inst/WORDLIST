@@ -1,10 +1,7 @@
-auditable
-deduplicated
-deterministically
-roadmap
+CMD
+POSIXct
+lossy
+multiset
+multisets
 testthat
-th
-tibble
-tibbles
-unclassed
-walkthrough
+testthat's

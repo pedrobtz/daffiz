@@ -5,264 +5,168 @@
 ![Coverage](https://github.com/pedrobtz/daffiz/raw/main/.github/badges/coverage.svg)
 <!-- badges: end -->
 
-`daffiz` finds numeric regressions between two tables that should be nearly
-identical. It aligns rows, applies absolute and relative tolerances, and returns
-an explainable cell-level result with the original row number from each input.
+`daffiz` compares two tables value by value. Its one main function,
+`diff_table()`, answers one of two questions:
 
-The package accepts data frames, data tables, and tibbles without modifying
-them. Its API is experimental and may change before the first stable release.
+- **Does this table match the benchmark?** (`mode = "benchmark"`, the
+  default.) The benchmark's column types are the truth. The tested table's
+  columns are cast to them, and its extra columns are dropped.
+- **Are these two tables equal?** (`mode = "equal"`.) The tables are peers:
+  every column must be in both, with the same type, and nothing is cast.
+
+The result is a `data.table` with one row per compared value. Each row traces
+back to its source row in both tables.
 
 ## Installation
-
-Install the released version from CRAN:
-
-```r
-install.packages("daffiz")
-```
-
-Or the development version from GitHub:
 
 ```r
 # install.packages("pak")
 pak::pak("pedrobtz/daffiz")
 ```
 
-## Compare two tables
+## Comparing against a benchmark
+
+A benchmark table, and the same data after a round trip through storage. On
+the way, the column names changed case, the ids became text, `units` came back
+as a double, a load timestamp was added, one row was lost and one was added:
 
 ```r
 library(daffiz)
 
-baseline <- data.frame(
-  id = 1:3,
-  amount = c(100, 200, 300)
+benchmark <- data.frame(
+  id     = c(1L, 2L, 3L, 4L),
+  region = c("north", "south", "east", "west"),
+  amount = c(100, 200, 300, 400),
+  units  = c(10L, 20L, 30L, 40L)
+)
+stored <- data.frame(
+  ID        = c("1", "2", "3", "5"),
+  Region    = c("north", "south", "east", "north"),
+  Amount    = c(100, 200.5, 300, 500),
+  Units     = c(10.4, 20, 30, 50),
+  loaded_at = "2026-09-29"
 )
 
-candidate <- data.frame(
-  id = 1:3,
-  amount = c(100, 200.03, 330)
+d <- diff_table(benchmark, stored, by = c("id", "region"), measures = "numeric+integer")
+#> Dropped column(s) of `y` that the benchmark `x` does not have: loaded_at.
+#> Truncated 1 value(s) while casting to the reference types:
+#>   Units: 1 (10.4 -> 10)
+d
+#> Key: <ID, REGION, metric>
+#>        ID REGION metric row_id_x row_id_y value_x value_y  diff  status
+#>     <int> <char> <char>    <int>    <int>   <num>   <num> <num>  <fctr>
+#>  1:     1  north AMOUNT        1        1     100   100.0   0.0    same
+#>  2:     1  north  UNITS        1        1      10    10.0   0.0    same
+#>  3:     2  south AMOUNT        2        2     200   200.5   0.5 changed
+#>  4:     2  south  UNITS        2        2      20    20.0   0.0    same
+#>  5:     3   east AMOUNT        3        3     300   300.0   0.0    same
+#>  6:     3   east  UNITS        3        3      30    30.0   0.0    same
+#>  7:     4   west AMOUNT        4       NA     400      NA    NA  only_x
+#>  8:     4   west  UNITS        4       NA      40      NA    NA  only_x
+#>  9:     5  north AMOUNT       NA        4      NA   500.0    NA  only_y
+#> 10:     5  north  UNITS       NA        4      NA    50.0    NA  only_y
+```
+
+Reading the result:
+
+- **`status`** is `same`, `changed`, `only_x` (the row is missing from the
+  tested table) or `only_y` (the row exists only there).
+- **`row_id_x` and `row_id_y`** are the row numbers in the two inputs.
+- **`diff`** is `value_y - value_x`.
+- **Column names are normalized** in both tables: upper case, with other
+  characters turned into `_`. That is why `id` and `ID` pair up.
+- **`units` was cast to the benchmark's integer type.** Its `10.4` was
+  truncated to `10`, which is announced in a message and recorded in
+  `attr(d, "truncated")`. Pass `truncate = FALSE` to refuse such casts
+  instead.
+
+`diff_summary()` condenses the result per measure:
+
+```r
+diff_summary(d)
+#>    metric     n n_same n_changed n_only_x n_only_y max_abs_diff mean_abs_diff      rmse
+#>    <char> <int>  <int>     <int>    <int>    <int>        <num>         <num>     <num>
+#> 1: AMOUNT     5      2         1        1        1          0.5     0.1666667 0.2886751
+#> 2:  UNITS     5      3         0        1        1          0.0     0.0000000 0.0000000
+```
+
+## Comparing two tables as equals
+
+In `mode = "equal"` nothing is cast or dropped, so the same two tables do not
+even compare:
+
+```r
+diff_table(benchmark, stored, mode = "equal")
+#> Error: mode = "equal" needs the same columns in both tables.
+#>   only in `x`: <none>
+#>   only in `y`: loaded_at
+```
+
+Row order never matters; rows are aligned on their identity:
+
+```r
+diff_table(benchmark, benchmark[c(4, 1, 2, 3), ], mode = "equal")
+#> Key: <ID, REGION, UNITS, metric>
+#>       ID REGION UNITS metric row_id_x row_id_y value_x value_y  diff status
+#>    <int> <char> <int> <char>    <int>    <int>   <num>   <num> <num> <fctr>
+#> 1:     1  north    10 AMOUNT        1        2     100     100     0   same
+#> 2:     2  south    20 AMOUNT        2        3     200     200     0   same
+#> 3:     3   east    30 AMOUNT        3        4     300     300     0   same
+#> 4:     4   west    40 AMOUNT        4        1     400     400     0   same
+```
+
+## Do they have the same rows?
+
+With no numeric measures, rows are compared as wholes. A repeated row counts
+once per copy:
+
+```r
+diff_table(
+  benchmark[c("id", "region")],
+  data.frame(ID = c(3L, 1L, 2L, 2L), REGION = c("east", "north", "south", "south"))
 )
-
-comparison <- compare_dt(baseline, candidate, abs_tol = 0.05)
-cat(format(comparison), sep = "\n")
-#> <daffiz_comparison> baseline -> candidate
-#> Rows: 3 / 3 | measures: 1 | cells: 3
-#> Identity: id
-#> Measures: amount
-#> Result: 1 cell(s) not equal
-
-is_matching(comparison)
-#> [1] FALSE
-
-diff_cells(comparison)
-#> Key: <id, .metric>
-#>       id .row_x .row_y .metric .value_x .value_y .diff .abs_diff .rel_diff
-#>    <int>  <int>  <int>  <char>    <num>    <num> <num>     <num>     <num>
-#> 1:     3      3      3  amount      300      330   -30        30 0.0909091
-#>    .match_type
-#>          <fctr>
-#> 1:         diff
+#> No measure columns (measures = "numeric"), so rows are compared as wholes: do the two tables have the same rows?
+#> Key: <ID, REGION, key_seq>
+#>       ID REGION key_seq row_id_x row_id_y status
+#>    <int> <char>   <int>    <int>    <int> <fctr>
+#> 1:     1  north       1        1        2   same
+#> 2:     2  south       1        2        3   same
+#> 3:     2  south       2       NA        4 only_y
+#> 4:     3   east       1        3        1   same
+#> 5:     4   west       1        4       NA only_x
 ```
 
-By default, ordinary double columns are measures and all other columns form the
-row identity. `Date` and `POSIXct` columns are identity columns by default even
-though R stores them as doubles. Use `by` and `compare` when inference is not
-appropriate:
+## In tests
+
+`expect_table_equal()` is a testthat expectation built on `diff_table()`.
+Its second argument, `expected`, is the benchmark:
 
 ```r
-compare_dt(
-  baseline,
-  candidate,
-  by = "id",
-  compare = "amount"
-)
+test_that("the pipeline reproduces the reference output", {
+  expect_table_equal(run_pipeline(), reference, tolerance = 1e-8)
+})
 ```
 
-To align rows by position instead of identity values, use:
+A failure shows `diff_summary()` and the first records that differ. A key
+that repeats fails the expectation instead of being paired by arrival order,
+unless you pass `duplicates = "disambiguate"` or `duplicates = "aggregate"`.
 
-```r
-compare_dt(baseline, candidate, by = daffiz_row_number())
-```
+## More
 
-## Tolerances
+- **Measures** are the numeric columns compared value by value. They default
+  to the double columns; `measures` takes `"numeric+integer"` or column
+  names.
+- **The row identity** is `by`, or every column that is not a measure. A
+  table needs at least one key column. When every column is a measure, add a
+  virtual one: `row_key = "position"` pairs rows as they come, and
+  `row_key = "sorted"` pairs them after sorting both tables by their values.
+- **Duplicate keys** are paired in arrival order with a warning, compared as
+  multisets (`duplicates = "aggregate"`), or refused
+  (`duplicates = "error"`).
+- **NaN and NA** are the same missing value unless `nan_is_na = FALSE`.
+- **Types other than character, logical, Date, numeric and integer** go
+  through `normalize_dt()` first. `cast_rules()` lists the conversions
+  `diff_table()` will make, and `compare_columns()` shows how the columns of
+  two tables line up.
 
-A cell matches when:
-
-```text
-abs(x - y) <= max(abs_tol, rel_tol * max(abs(x), abs(y)))
-```
-
-Both tolerances can be a single value or a named vector. Use `.default` as the
-fallback for measures without a specific setting:
-
-```r
-compare_dt(
-  baseline,
-  candidate,
-  abs_tol = c(.default = 0, amount = 0.05),
-  rel_tol = 1e-6
-)
-```
-
-The rule is symmetric: swapping the inputs does not change whether a cell
-matches.
-
-## Duplicate identities
-
-Duplicated identity values are ambiguous because multiple source rows can align
-to the same key. Choose a policy with `duplicate_keys`:
-
-- `"pair"` (the default) sorts rows within each duplicated group and pairs them
-  deterministically. A warning explains that the pairing is heuristic. Because
-  the sort is on the measure values, the pairing minimizes apparent
-  differences: two tables whose duplicated rows disagree row for row can still
-  report as matching.
-- `"report"` records duplicated groups in `duplicate_info()` and excludes them
-  from cell comparison. The result is incomplete, so `is_matching()` returns
-  `FALSE` even if every retained cell is equal.
-- `"error"` stops and asks for a more specific identity.
-
-For paired duplicates, `.row_x` and `.row_y` show exactly which source rows were
-aligned.
-
-## Comparisons that align nothing
-
-If no identity value occurs in both inputs — or one input is empty while the
-other is not — there is nothing to compare: every cell would be `x_only` or
-`y_only`. `compare_dt()` stops before doing any work, and shows the keys:
-
-```r
-baseline  <- data.frame(order_id = c("A001", "A002"), amount = c(10, 20))
-candidate <- data.frame(order_id = c(" A001", " A002"), amount = c(10, 21))
-
-compare_dt(baseline, candidate)
-#> Error: Comparison aligns no rows.
-#>   No identity value appears in both inputs (2 row(s) in `baseline`, 2 in `candidate`).
-#>   Identity: order_id
-#>   only in `baseline`: A001, A002
-#>   only in `candidate`:  A001,  A002
-#>   Check that `by=` names the right columns and that the key values have the same
-#>   format on both sides, or use `by = daffiz_row_number()` to align by position.
-```
-
-The key sample is the diagnosis — here it shows the leading whitespace. Pass
-`disjoint_keys = "warn"` when a partition legitimately has no overlap and you
-want the `x_only`/`y_only` records anyway. Two empty inputs are equal, not
-ill-formed, and are exempt. A single aligned row is a real comparison: the rule
-is zero overlap, not low overlap.
-
-## Result model
-
-`compare_dt()` returns a `daffiz_comparison`. Start with the bounded report:
-
-```r
-summary(comparison)
-```
-
-Then inspect the affected measures and source records without writing joins or
-aggregations:
-
-```r
-diff_columns(comparison)
-diff_rows(comparison)
-diff_rows(comparison, view = "paired")
-
-diff_indices(comparison, "x")
-original_rows(comparison, "x")
-```
-
-The public accessors are:
-
-- `is_matching()` for the overall result;
-- `all_cells()` and `diff_cells()` for auditable cell-level results;
-- `column_summary()` and `diff_columns()` for measure diagnostics;
-- `row_summary()` and `diff_rows()` for record diagnostics;
-- `diff_indices()` and `original_rows()` for source-row recovery;
-- `x_only()` and `y_only()` for unmatched source records;
-- `duplicate_info()` and `key_profile()` for alignment diagnostics.
-
-## Visualize difference patterns
-
-There is one plot: an Amelia-style difference map, in the spirit of
-`Amelia::missmap()`. Observations run down the y axis and numeric measures
-across the x axis. Green means the two tables agree, red means they do not.
-
-```r
-plot_diff(comparison)
-plot(comparison)          # the same map
-```
-
-Rows keep their **original source order** and are never ranked, because
-position order is what makes a run of regressions in one region of the input
-read as a band. Narrow the measures with `columns`:
-
-```r
-plot_diff(comparison, columns = c("amount", "score"))
-```
-
-Above `max_rows` records the map aggregates contiguous rows into at most
-`row_bins` bins and shades each tile by the share of its cells that differ. No
-row is ever dropped, and the subtitle says when binning applied:
-
-```r
-plot_diff(comparison, max_rows = 500, row_bins = 100)
-```
-
-The fill colours are the Okabe-Ito bluish green and vermillion, which read as
-green and red but remain distinguishable under the common forms of colour
-blindness. While the map is small enough to label, each differing tile also
-carries a mark — `!` different, `X` only in `x`, `Y` only in `y`, and nothing
-where the tables agree — so the classification never depends on colour alone.
-
-`plot_data()` returns the exact table behind the map and does not require
-`ggplot2`, which is useful for audits and custom graphics:
-
-```r
-plot_data(comparison)
-plot_data(comparison, columns = "amount")
-```
-
-Each cell is classified as `equal`, `diff`, `x_only`, or `y_only`. Missing rows
-are distinct from present rows containing `NA`, and `.row_x`/`.row_y` always
-refer to the original input positions.
-
-For measure- and record-level detail, use the data accessors — `column_summary()`,
-`diff_columns()`, `row_summary()` and `diff_rows()` — rather than more charts.
-
-For regression tests, `expect_dt_equal()` uses the same comparison object and
-includes bounded column, row, and cell diagnostics in failures:
-
-```r
-expect_dt_equal(baseline, candidate, abs_tol = 0.05)
-```
-
-Unlike `compare_dt()`, it defaults to `duplicate_keys = "error"`: an assertion
-should not pass on a heuristic row alignment. Pass `duplicate_keys = "pair"`
-explicitly if you want the heuristic in a test.
-
-The comparison materializes approximately `n_rows * n_measures` cells in
-memory. Narrow wide comparisons with `compare` or `exclude`. For wide inputs,
-`batch` limits how many measures are melted and joined at once without changing
-the retained result:
-
-```r
-compare_dt(baseline, candidate, batch = 10)
-```
-
-Benchmarks measured the retained result at about 64 bytes per unique-key cell,
-while construction required substantially more working memory. By default, a
-projected result above 10 million cells therefore produces an early warning.
-Narrow the measures or use `batch` before raising the configurable threshold
-with `options(daffiz.max_cells = ...)`. See the
-[benchmark validation](https://github.com/pedrobtz/daffiz/blob/main/benchmarks/results/threshold-validation-2026-09-01.md)
-for the raw methodology and decision.
-
-## Current scope
-
-`daffiz` deliberately focuses on numeric regression comparison. The current
-release requires the post-exclusion column sets to match and supports unclassed
-integer and double measures. It does not perform schema matching, fuzzy row
-alignment, or comparisons of dates, factors, or other classed values as
-measures.
-
-The [comparison workflow](https://pedrobtz.github.io/daffiz/articles/comparing-tables.html)
-vignette gives a complete walkthrough.
+See `?diff_table` for the details.
