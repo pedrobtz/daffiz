@@ -338,3 +338,12 @@ test_that("cast_dt names columns by their labels in messages", {
     "column \"amount\" \\(AMOUNT\\)"
   )
 })
+
+test_that("a short year is refused on every platform, not only where %Y pads", {
+  # glibc formats year 24 as "24", so the text round trip alone would accept
+  # "24-01-01" on Linux. The year is checked on the date itself.
+  expect_error(cast_value("24-01-01", "Date", "col"), "not a canonical", class = "daffiz_error_cast")
+  expect_error(cast_value("024-01-01", "Date", "col"), "not a canonical")
+  expect_error(cast_value("0024-01-01", "Date", "col"), "not a canonical")
+  expect_equal(cast_value("1024-01-01", "Date", "col"), as.Date("1024-01-01"))
+})

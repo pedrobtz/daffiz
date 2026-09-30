@@ -134,6 +134,10 @@ Each is covered by a test.
 - **Counts that can pass 2^31 are doubles, and are never formatted with
   `%d`.** `sprintf("%d", 3e9)` is an error, so the message for exactly the
   fanout worth refusing would fail to build.
+- **Text dates before the year 1000 are refused, by reading the year off the
+  parsed date.** The format-back round trip alone is platform-dependent:
+  glibc writes year 24 as `"24"` under `%Y` (macOS writes `"0024"`), so
+  `"24-01-01"` passed on Linux only. CI caught it; macOS cannot reproduce it.
 - **`col_type()` is the only type vocabulary.** A second one (`class()[1]`)
   made IDate and integer64 one type to one function and another to the next.
 - **A table is well-formed when it has at least one key column; it may have

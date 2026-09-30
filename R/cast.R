@@ -169,6 +169,12 @@ cast_value <- function(v, to, nm, origin = NULL, date_format = "%Y-%m-%d",
         # the year 24. Formatting the parsed date back out is what separates a
         # date from a string that merely starts with one.
         off <- !is.na(d) & format(d, date_format) != v
+        # The round trip alone cannot catch a short year on every platform:
+        # glibc writes year 24 as "24" under %Y where macOS writes "0024", so
+        # on Linux "24-01-01" formats back to itself. No real date precedes
+        # the year 1000, and a two- or three-digit year lands exactly there,
+        # so those are refused too, reading the year from the date itself.
+        off <- off | (!is.na(d) & as.POSIXlt(d)$year + 1900L < 1000L)
         if (any(off)) {
           refuse(sprintf("not a canonical %s date", date_format), v[off])
         }
