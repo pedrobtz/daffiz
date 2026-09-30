@@ -25,16 +25,6 @@
       <ul class="nav navbar-nav"><li>
   <a href="../reference/index.html">Reference</a>
 </li>
-<li class="dropdown">
-  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Articles
-
-    <span class="caret"></span>
-  </a>
-  <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/comparing-tables.html">Finding Numeric Regressions with daffiz</a>
-    </li>
-  </ul></li>
 <li>
   <a href="../news/index.html">Changelog</a>
 </li>
@@ -59,44 +49,31 @@
 
     <div class="section level2">
 <h2 class="page-header" data-toc-text="0.1.0" id="daffiz-010">daffiz 0.1.0<a class="anchor" aria-label="anchor" href="#daffiz-010"></a></h2>
-<div class="section level3">
-<h3 id="initial-release-0-1-0">Initial release<a class="anchor" aria-label="anchor" href="#initial-release-0-1-0"></a></h3>
-<ul><li>Added <code><a href="../reference/compare_dt.html">compare_dt()</a></code> for numeric, tolerance-aware comparison of two tables.</li>
-<li>Added inferred or explicit row identities and measure selection. Role inference reads both inputs, so <code><a href="../reference/compare_dt.html">compare_dt()</a></code> resolves the same roles in either argument order. A column that is an unclassed integer on one side and an unclassed double on the other is not a default measure; the error names it and points at <code>compare=</code>.</li>
-<li>Added traceable cell results, deterministic duplicate-key policies, and structured validation conditions.</li>
-<li>Added <code><a href="../reference/all_cells.html">all_cells()</a></code>, <code><a href="../reference/is_matching.html">is_matching()</a></code>, and <code><a href="../reference/duplicate_info.html">duplicate_info()</a></code> accessors.</li>
-<li>Added column and row summaries, original-row recovery, side-only accessors, key profiles, bounded reports, and <code><a href="../reference/expect_dt_equal.html">expect_dt_equal()</a></code>.</li>
+<p>First release.</p>
+<ul><li>
+<code><a href="../reference/diff_table.html">diff_table()</a></code> compares two tables value by value, returning a <code>data.table</code> with one row per compared value, traceable to its source row in both inputs (<code>row_id_x</code>, <code>row_id_y</code>), and a <code>status</code> of <code>same</code>, <code>changed</code>, <code>only_x</code> or <code>only_y</code>.</li>
+<li>Two modes:
+<ul><li>
+<code>mode = "benchmark"</code> (the default) tests <code>y</code> against the benchmark <code>x</code>. <code>y</code>’s columns are cast to <code>x</code>’s types, its extra columns are dropped with a message, and a column it lacks is an error.</li>
 <li>
-<code><a href="../reference/expect_dt_equal.html">expect_dt_equal()</a></code> defaults to <code>duplicate_keys = "error"</code>. Under the <code><a href="../reference/compare_dt.html">compare_dt()</a></code> default of <code>"pair"</code>, duplicated groups are paired by sorted measure value, which minimizes apparent differences and can pass an assertion on tables that disagree row for row.</li>
-<li>Comparisons using <code>duplicate_keys = "report"</code> are marked incomplete and do not match because ambiguous groups were excluded from cell comparison.</li>
-<li>Duplicate pairing sorts measures by name in the C locale, so the pairing does not depend on the order <code>compare=</code> was given or on the session locale.</li>
-<li>Magnitude statistics (<code>mean_abs_diff</code>, <code>rmse</code>, <code>max_abs_diff</code>, <code>p95_abs_diff</code>, and the plot deltas) include every cell whose two source values are finite. They previously filtered on the derived difference, which discarded a genuine difference whose subtraction overflowed to infinity; <code>max_abs_diff</code> then reported <code>0</code> for the largest difference in a table. <code>rmse</code> is computed with scaling so squaring cannot overflow.</li>
-<li>Identity columns must have a joinable type (<code>logical</code>, <code>integer</code>, <code>double</code>, <code>character</code>, or a class built on one of those). <code>list</code>, <code>complex</code> and <code>raw</code> columns previously passed preflight and failed later with a raw <code>data.table</code> message.</li>
-<li>Identity columns must agree on join-relevant attributes. Two <code>difftime</code> columns with different <code>units</code> have the same type and class but different underlying numbers, so every row previously reported as side-only. Time zone is not treated as join-relevant: <code>POSIXct</code> columns in different zones hold the same epoch seconds and align correctly.</li>
+<code>mode = "equal"</code> compares the two as peers. Every column must be in both tables with the same type, nothing is cast, and the result is symmetric.</li>
+</ul></li>
+<li>Casts that drop a fraction – a double to an integer, a number or a timestamp to a whole day – are made by default, since storage such as Spark or Delta narrows types the same way. Each one is announced and recorded; <code>truncate = FALSE</code> refuses them.</li>
+<li>Column names in both tables are normalized to <code>A-Z</code>, <code>0-9</code> and <code>_</code>, so <code>amount</code> and <code>Amount</code> are one column. Two names in one table that normalize to the same thing are an error.</li>
 <li>
-<code>by=</code> and <code>compare=</code> reject a repeated column name. A repeated <code>compare</code> name melted the measure twice on each side, so the join went cartesian and every cell, count and statistic was silently multiplied.</li>
+<code>by</code> names the row identity. <code>measures</code> chooses the compared columns, by type (<code>"numeric"</code>, <code>"numeric+integer"</code>) or by name. With no measures, <code><a href="../reference/diff_table.html">diff_table()</a></code> compares whole rows.</li>
+<li>A table must have at least one key column. When it has none, <code>row_key = "position"</code> adds the row number as a virtual key, and <code>row_key = "sorted"</code> adds it after sorting both tables by their values, so row order does not matter.</li>
+<li>Duplicate keys are paired in arrival order with a warning, compared as exact multisets with <code>duplicates = "aggregate"</code>, or refused with <code>duplicates = "error"</code>.</li>
 <li>
-<code><a href="../reference/key_profile.html">key_profile()</a></code> keeps missing identity values in its <code>values</code> list, so <code>n_distinct</code> and <code>lengths(values)</code> agree and an <code>NA</code> key is visible.</li>
-<li>A column whose name is reserved by daffiz results can now be dropped with <code>exclude=</code> instead of having to be renamed.</li>
-<li>A tolerance vector that names the same column twice is an error rather than a silent choice between the values.</li>
-<li>The projected-size warning counts aligned records exactly, using the identity counts the duplicate scan already computes. It previously projected from the larger input, under-counting by up to half when the identities were disjoint.</li>
-<li>Added transparent measure batching through <code>compare_dt(batch=)</code> to reduce peak intermediate memory for wide comparisons without discarding cells.</li>
-<li>Added a single visualization: an Amelia-style difference map, via <code><a href="../reference/plot_data.html">plot_data()</a></code> and the optional <code>ggplot2</code>-based <code><a href="../reference/plot_diff.html">plot_diff()</a></code>. Observations run down the y axis and numeric measures across the x axis, filled green where the two tables agree and red where they do not. Measure- and record-level questions are answered by the data accessors rather than by further chart types, so there are no ranked-measure, delta-distribution or overview plots.</li>
-<li>The map keeps rows in their <strong>original source order</strong> and never ranks them. Position order is what makes a run of regressions in one region of the input read as a band, which ranking destroys. Above <code>max_rows</code> records contiguous rows are aggregated into at most <code>row_bins</code> bins and shaded by the share of cells that differ; no row is ever dropped, and the subtitle discloses it.</li>
-<li>The map’s fill colours are the Okabe-Ito bluish green and vermillion. They read as green and red but, unlike true red/green, separate on both the blue-yellow axis and in lightness, so they survive the common forms of colour blindness. Each differing tile additionally carries an ASCII mark – <code>!</code> different, <code>X</code> only in <code>x</code>, <code>Y</code> only in <code>y</code> – so the four cell classes never depend on fill alone.</li>
-<li>Added a <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> method so <code>plot(comparison)</code> draws the map, and an <code><a href="https://rdrr.io/r/base/all.equal.html" class="external-link">all.equal()</a></code> method that ignores the internal accessor cache. <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> now errors on a positional second argument rather than silently discarding it: <code>y</code> belongs to the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> generic and is unused, so <code>plot(cmp, "amount")</code> – the natural mirror of <code>plot_diff(cmp, "amount")</code> – drew every measure and reported nothing.</li>
-<li>Dropped the <code>grid</code> dependency, which only the removed multi-panel overview needed.</li>
-<li>Reporting no longer summarizes the all-equal records it immediately discards, and <code><a href="https://rdrr.io/r/base/format.html" class="external-link">format()</a></code> no longer builds a full summary. <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> on a 300,000-row, three-measure comparison went from about 9.6s to under 1s.</li>
-<li>Working tables are deep-copied only when duplicate pairing needs to sort them, rather than on every comparison.</li>
-<li>Validated long-table memory and timing with isolated benchmarks. The default warning now fires above 10 million projected cells; the earlier 50-million threshold was too late relative to measured construction memory.</li>
-<li>The projected-size guard no longer fails on the comparisons it exists to warn about. <code><a href="../reference/compare_dt.html">compare_dt()</a></code> passes integer row and measure counts, whose product overflows <code>.Machine$integer.max</code> at about 2.1e9 cells; the resulting <code>NA</code> then reached <code>if (NA)</code> and aborted with <code>missing value where TRUE/FALSE needed</code>. The existing test passed doubles and never exercised the integer path.</li>
-<li>A comparison that aligns no rows is now an error (<code>daffiz_error_disjoint</code>) rather than a silent non-comparison. Four cases reached the end of the pipeline without a word: fully disjoint identities, and either input being empty while the other has rows. All four produced a result whose every cell was <code>x_only</code> or <code>y_only</code>, with <code>n_compared</code> of zero, reporting “differences” that were really two unrelated tables. The error carries a bounded sample of the keys on each side, which is what actually identifies the cause – usually a wrong <code>by=</code>, or key values that agree in type but not in format (padded or trimmed codes, a locale or encoding skew).</li>
-<li>The alignment gate runs <em>before</em> the melt. The disjoint case is the one that builds the largest possible cell table – the outer join yields <code>n_x + n_y</code> records, every one of them useless – so a guard placed after it would be worth nothing.</li>
-<li>Added <code>compare_dt(disjoint_keys=)</code>, <code>"error"</code> (default) or <code>"warn"</code>, for the batch workflow that legitimately expects some partitions not to overlap. <code><a href="../reference/expect_dt_equal.html">expect_dt_equal()</a></code> inherits the strict default. Two empty inputs remain equal rather than ill-formed and are exempt from the gate; a single aligned row is enough to be a real comparison, so the gate is zero-overlap rather than an arbitrary low-overlap threshold.</li>
-<li>One identity scan now serves both the alignment gate and the duplicate policy, instead of the counts being built twice.</li>
-<li>Removed <code>duplicate_groups()</code>, which was defined but never called.</li>
+<code>nan_is_na = TRUE</code> treats NaN as NA, in values and in key columns alike.</li>
+<li>A comparison in which no row aligns is an error, not a report of two unrelated tables.</li>
+<li>
+<code><a href="../reference/diff_summary.html">diff_summary()</a></code> counts each status per measure and measures the size of the differences.</li>
+<li>
+<code><a href="../reference/expect_table_equal.html">expect_table_equal()</a></code> is a testthat expectation built on <code><a href="../reference/diff_table.html">diff_table()</a></code>.</li>
+<li>
+<code><a href="../reference/compare_columns.html">compare_columns()</a></code> shows how the columns of two tables line up, <code><a href="../reference/normalize_dt.html">normalize_dt()</a></code> converts other types (factors, timestamps) to the ones <code><a href="../reference/diff_table.html">diff_table()</a></code> compares, and <code><a href="../reference/cast_rules.html">cast_rules()</a></code> lists the conversions it makes.</li>
 </ul></div>
-</div>
   </div>
 
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
