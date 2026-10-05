@@ -36,7 +36,10 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' benchmark's types are taken as the truth: storage such as Spark or Delta
 #' turns a locally built double into an integer, and the comparison has to
 #' follow it. Each truncation is announced in a message and recorded in
-#' `attr(, "truncated")`. Set `truncate = FALSE` to refuse such casts instead.
+#' `attr(, "truncated")`: per column, the count and up to three examples, not
+#' the rows. A truncated key column can pair rows that differ (`1.5` in `y`
+#' becomes `1` and aligns with `x`'s `1`), so read the message when it names
+#' a key. Set `truncate = FALSE` to refuse such casts instead.
 #'
 #' @section Measures and identity:
 #' The measures are the numeric columns compared value by value; `measures`
@@ -45,7 +48,9 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' a column in neither role is not compared: that is announced in benchmark
 #' mode and an error in equal mode, which cannot call two tables equal while
 #' ignoring a column. A numeric column that is part of the identity is matched
-#' exactly, with no tolerance.
+#' exactly, with no tolerance. So is a Date key, on its exact value: a Date
+#' can hold a fraction of a day, and two Dates that print as the same day
+#' then do not align.
 #'
 #' With no measures at all the question becomes *do the two tables have the
 #' same rows?*, and the result has one row per row (see Value).
@@ -83,6 +88,29 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' `nan_is_na = TRUE` NaN and NA are the same missing value, in measures and in
 #' key columns alike.
 #'
+#' @section Conditions:
+#' Every condition `diff_table()` signals has a class, so it can be caught
+#' or tested for without matching its text, and inherits from
+#' `daffiz_error`, `daffiz_warning` or `daffiz_message`. An error means the
+#' question cannot be answered; a warning, that the answer may be wrong; a
+#' message reports an expected consequence of the settings.
+#' * `daffiz_error_input`: an argument is malformed.
+#' * `daffiz_error_columns`: columns missing, unknown, or left uncompared in
+#'   equal mode; names that are empty or collide once normalized.
+#' * `daffiz_error_types`: a column of a type that cannot be compared, or
+#'   types that differ where nothing is cast.
+#' * `daffiz_error_cast`: a value that cannot be cast to the benchmark's type.
+#' * `daffiz_error_keys`: no key column to align rows on.
+#' * `daffiz_error_measures`: `measures` names something that cannot be
+#'   measured, or a column `by` names too.
+#' * `daffiz_error_duplicates`: repeated keys under `duplicates = "error"`.
+#' * `daffiz_error_disjoint`: no key appears in both tables.
+#' * `daffiz_error_dependency`: a suggested package is needed but missing.
+#' * `daffiz_warning_duplicates`: repeated keys paired in arrival order.
+#' * `daffiz_message_dropped_columns`, `daffiz_message_ignored_columns`,
+#'   `daffiz_message_no_measures`, `daffiz_message_truncation`: columns of
+#'   `y` dropped, columns not compared, no measures, values truncated.
+#'
 #' @param x The benchmark table (in `"equal"` mode, simply the first table).
 #' @param y The table to compare with it.
 #' @param mode `"benchmark"` (the default) or `"equal"`. See Modes.
@@ -107,8 +135,8 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #'
 #' @return A `data.table` keyed by the identity columns (and `key_seq`,
 #'   `metric` when present), with `status` a factor with levels `same`,
-#'   `changed`, `only_x` and `only_y`. Its shape is in `attr(, "shape")`:
-#'   The key includes `row_number` when `row_key` added it.
+#'   `changed`, `only_x` and `only_y`. The key includes `row_number` when
+#'   `row_key` added it. Its shape is in `attr(, "shape")`:
 #'   * `"cells"`, the usual one: one row per row and measure, with `key_seq`
 #'     (only when duplicates were numbered), `metric`, `row_id_x`, `row_id_y`
 #'     (the source rows, `NA` on the side the row is missing from),
