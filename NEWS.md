@@ -37,6 +37,8 @@ First release.
   the differences.
 * `expect_table_equal()` is a testthat expectation built on `diff_table()`.
 * `compare_columns()` shows how the columns of two tables line up,
-  `normalize_dt()` converts other types (factors, timestamps) to the ones
-  `diff_table()` compares, and `cast_rules()` lists the conversions it
-  makes.
+  `normalize_dt()` converts other types (factors, timestamps, `integer64`)
+  to the ones `diff_table()` compares, and `cast_rules()` lists the
+  conversions it makes.
+* Every error, warning and message has a class, listed under Conditions in
+  `?diff_table`.

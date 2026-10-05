@@ -56,8 +56,8 @@ refused rather than read as one.}
 \value{
 A \code{data.table} keyed by the identity columns (and \code{key_seq},
 \code{metric} when present), with \code{status} a factor with levels \code{same},
-\code{changed}, \code{only_x} and \code{only_y}. Its shape is in \code{attr(, "shape")}:
-The key includes \code{row_number} when \code{row_key} added it.
+\code{changed}, \code{only_x} and \code{only_y}. The key includes \code{row_number} when
+\code{row_key} added it. Its shape is in \code{attr(, "shape")}:
 \itemize{
 \item \code{"cells"}, the usual one: one row per row and measure, with \code{key_seq}
 (only when duplicates were numbered), \code{metric}, \code{row_id_x}, \code{row_id_y}
@@ -116,7 +116,10 @@ number or a timestamp to a whole day -- is made by default, because the
 benchmark's types are taken as the truth: storage such as Spark or Delta
 turns a locally built double into an integer, and the comparison has to
 follow it. Each truncation is announced in a message and recorded in
-\code{attr(, "truncated")}. Set \code{truncate = FALSE} to refuse such casts instead.
+\code{attr(, "truncated")}: per column, the count and up to three examples, not
+the rows. A truncated key column can pair rows that differ (\code{1.5} in \code{y}
+becomes \code{1} and aligns with \code{x}'s \code{1}), so read the message when it names
+a key. Set \code{truncate = FALSE} to refuse such casts instead.
 }
 
 \section{Measures and identity}{
@@ -127,7 +130,9 @@ when given, otherwise every column that is not a measure. With \code{by} given,
 a column in neither role is not compared: that is announced in benchmark
 mode and an error in equal mode, which cannot call two tables equal while
 ignoring a column. A numeric column that is part of the identity is matched
-exactly, with no tolerance.
+exactly, with no tolerance. So is a Date key, on its exact value: a Date
+can hold a fraction of a day, and two Dates that print as the same day
+then do not align.
 
 With no measures at all the question becomes \emph{do the two tables have the
 same rows?}, and the result has one row per row (see Value).
@@ -174,6 +179,33 @@ A value is \code{same} when both are equal, or when both are finite and differ
 by at most \code{tolerance}. Two missing values are the same; with
 \code{nan_is_na = TRUE} NaN and NA are the same missing value, in measures and in
 key columns alike.
+}
+
+\section{Conditions}{
+
+Every condition \code{diff_table()} signals has a class, so it can be caught
+or tested for without matching its text, and inherits from
+\code{daffiz_error}, \code{daffiz_warning} or \code{daffiz_message}. An error means the
+question cannot be answered; a warning, that the answer may be wrong; a
+message reports an expected consequence of the settings.
+\itemize{
+\item \code{daffiz_error_input}: an argument is malformed.
+\item \code{daffiz_error_columns}: columns missing, unknown, or left uncompared in
+equal mode; names that are empty or collide once normalized.
+\item \code{daffiz_error_types}: a column of a type that cannot be compared, or
+types that differ where nothing is cast.
+\item \code{daffiz_error_cast}: a value that cannot be cast to the benchmark's type.
+\item \code{daffiz_error_keys}: no key column to align rows on.
+\item \code{daffiz_error_measures}: \code{measures} names something that cannot be
+measured, or a column \code{by} names too.
+\item \code{daffiz_error_duplicates}: repeated keys under \code{duplicates = "error"}.
+\item \code{daffiz_error_disjoint}: no key appears in both tables.
+\item \code{daffiz_error_dependency}: a suggested package is needed but missing.
+\item \code{daffiz_warning_duplicates}: repeated keys paired in arrival order.
+\item \code{daffiz_message_dropped_columns}, \code{daffiz_message_ignored_columns},
+\code{daffiz_message_no_measures}, \code{daffiz_message_truncation}: columns of
+\code{y} dropped, columns not compared, no measures, values truncated.
+}
 }
 
 \examples{

@@ -75,7 +75,8 @@ select_measures <- function(dt, measures = "numeric") {
 #' @param nan_to_na Map NaN to NA in double id columns. data.table joins and
 #'   groups NA and NaN as different keys, so without this a row keyed NaN on
 #'   one side and NA on the other would not align.
-#' @return A keyed data.table.
+#' @return A keyed data.table. Every missing value in a double id column holds
+#'   one bit pattern; see \code{canonical_missing()}.
 #' @noRd
 index_dt <- function(dt, ids, measures = character(), nan_to_na = FALSE) {
   cols <- c(ids, measures)
@@ -85,20 +86,44 @@ index_dt <- function(dt, ids, measures = character(), nan_to_na = FALSE) {
       wide[[nm]] <- as.double(wide[[nm]])
     }
   }
-  if (nan_to_na) {
-    for (nm in ids) {
-      v <- wide[[nm]]
-      if (is.double(v) && !is.object(v) && any(is.nan(v))) {
-        v[is.nan(v)] <- NA_real_
-        wide[[nm]] <- v
-      }
-    }
+  for (nm in ids) {
+    wide[[nm]] <- canonical_missing(wide[[nm]], nan_to_na)
   }
   wide <- setDT(c(list(row_id = seq_len(nrow(dt))), wide))
   if (length(ids)) {
     setkeyv(wide, ids)
   }
   wide[]
+}
+
+#' One bit pattern per missing value in a double key
+#'
+#' R calls NA any NaN whose low word is 1954, and arithmetic on NA
+#' (\code{NA + 0}, \code{as.Date(NA) + 1}, \code{x / 1000}) sets the quiet bit
+#' on the way, so a computed key column often holds two NA patterns.
+#' data.table joins them as one key, but its keyed grouping keeps them apart,
+#' so duplicate numbering and the fanout check disagreed with the join.
+#' Writing every NA back as \code{NA_real_} and every NaN as \code{NaN} gives
+#' data.table one pattern for each, in every class built on a double (Date
+#' and POSIXct included).
+#'
+#' @param v A vector; only doubles are touched.
+#' @param nan_to_na Whether NaN becomes NA too.
+#' @return \code{v}, with its class and attributes.
+#' @noRd
+canonical_missing <- function(v, nan_to_na = FALSE) {
+  if (!is.double(v) || !anyNA(v)) {
+    return(v)
+  }
+  at <- attributes(v)
+  v <- as.vector(unclass(v), "double")
+  nan <- is.nan(v)
+  v[is.na(v) & (nan_to_na | !nan)] <- NA_real_
+  if (!nan_to_na) {
+    v[nan] <- NaN
+  }
+  attributes(v) <- at
+  v
 }
 
 #' Melt a table, choosing the measures by type or by name

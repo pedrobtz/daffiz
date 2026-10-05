@@ -90,3 +90,25 @@ test_that("an indexed table melts as it is, keeping key_seq in the key", {
   expect_identical(key(long), c("ID", "key_seq"))
   expect_identical(long$row_id, c(1L, 2L))
 })
+
+test_that("index_dt writes every missing double key with one bit pattern", {
+  na_q <- NA_real_ + 0 # arithmetic sets the quiet bit; R still calls it NA
+  expect_false(identical(writeBin(na_q, raw()), writeBin(NA_real_, raw())))
+
+  w <- index_dt(data.table(k = c(NA_real_, na_q), d = as.Date(c(NA, NA)) + 1), c("k", "d"))
+  for (nm in c("k", "d")) {
+    raws <- lapply(unclass(w[[nm]]), writeBin, raw())
+    expect_true(all(vapply(raws, identical, logical(1L), writeBin(NA_real_, raw()))))
+  }
+  expect_s3_class(w$d, "Date")
+
+  # NaN stays NaN, in one pattern, unless it is mapped to NA. (The keyed
+  # table is sorted, so the values are checked by kind, not by position.)
+  w <- index_dt(data.table(k = c(NaN, -NaN, na_q)), "k")
+  nan <- w$k[is.nan(w$k)]
+  expect_length(nan, 2L)
+  expect_identical(writeBin(nan[1], raw()), writeBin(nan[2], raw()))
+  expect_identical(sum(is.na(w$k) & !is.nan(w$k)), 1L)
+  w <- index_dt(data.table(k = c(NaN, na_q)), "k", nan_to_na = TRUE)
+  expect_false(any(is.nan(w$k)))
+})

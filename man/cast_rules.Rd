@@ -26,6 +26,15 @@ refused rather than made.
 A cast that drops the fraction of a value (a double to an integer, a
 timestamp to its calendar day) is a \emph{truncation}: it is made when
 \code{truncate = TRUE}, which is the default, and refused otherwise.
+
+Text is parsed strictly: anything that is not a number, a logical literal
+or a date in \code{date_format} is refused, and that includes the text \code{"NA"},
+since a missing value has to arrive as \code{NA}. \code{"NaN"} and \code{"Inf"} are
+numbers. A double written as text is written in fixed notation, so
+\code{100000} becomes \code{"100000"}, not \code{"1e+05"}, and a timestamp written as text
+is its local time in its own timezone, which the text does not record. An
+\code{integer64} column (from \pkg{bit64}) becomes a double when that is exact,
+an integer within range, or its decimal text.
 }
 \examples{
 cast_rules()

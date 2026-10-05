@@ -188,12 +188,9 @@ virtual_key <- function(dt, how = c("position", "sorted"), groups = character(),
     return(seq_len(n))
   }
 
-  keys <- lapply(as.list(dt)[c(groups, sort_by)], function(v) {
-    if (nan_is_na && is.double(v) && !is.object(v) && any(is.nan(v))) {
-      v[is.nan(v)] <- NA_real_
-    }
-    v
-  })
+  keys <- lapply(as.list(dt)[c(groups, sort_by)], canonical_missing,
+    nan_to_na = nan_is_na
+  )
   o <- do.call(order, c(unname(keys), list(method = "radix", na.last = TRUE)))
   out <- integer(n)
   out[o] <- if (length(groups)) {

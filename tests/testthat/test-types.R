@@ -51,3 +51,17 @@ test_that("the truncating casts say so in their notes", {
     "numeric Date", "POSIXct Date"
   ))
 })
+
+test_that("col_type names an ordered factor a factor", {
+  f <- factor(c("b", "a"), levels = c("b", "a"), ordered = TRUE)
+  expect_identical(col_type(f), "factor")
+  expect_identical(col_type(factor("a")), "factor")
+})
+
+test_that("cast_rules() lists integer64 as a source type only", {
+  w <- cast_rules()
+  expect_true("integer64" %in% w$from)
+  expect_identical(w[from == "integer64", numeric], "yes")
+  expect_identical(w[from == "integer64", Date], "-")
+  expect_false("integer64" %in% names(w))
+})

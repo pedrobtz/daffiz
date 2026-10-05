@@ -1,5 +1,11 @@
 # Performance benchmarks
 
+> **Out of date.** This harness still measures the pipeline of the earlier
+> draft (`compare_dt()`, tag `draft-0.1.0`), which daffiz 0.1.0 no longer
+> exports, so the commands below fail against the current package. Run them
+> from a checkout of `draft-0.1.0`, or port the harness to `diff_table()`
+> first (see `.agents/roadmap.md`).
+
 These benchmarks exercise the package's actual canonical long-table workload
 in fresh R processes. Each completed case records comparison construction time,
 column- and row-summary time, in-memory object sizes, and the high-water mark

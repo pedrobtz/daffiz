@@ -5,8 +5,9 @@
 CAST_TYPES <- c("character", "logical", "Date", "numeric", "integer")
 
 # Types a candidate column may arrive as. POSIXct converts like the timestamp
-# it is; a factor only becomes its labels. Neither is a target type.
-CAST_FROM <- c(CAST_TYPES, "POSIXct", "factor")
+# it is; a factor only becomes its labels; integer64 becomes a number or its
+# text through bit64. None is a target type.
+CAST_FROM <- c(CAST_TYPES, "POSIXct", "factor", "integer64")
 
 # How normalize_dt() converts a column that is not already a baseline type,
 # when the caller does not say. Only a factor has a default: its labels are
@@ -37,7 +38,13 @@ CAST_RULES <- rbindlist(lapply(CAST_FROM, function(from) {
   note = "as is"
 )][
   from == "character",
-  note := "parsed from the text"
+  note := "parsed from the text; a missing value must be NA, not the text \"NA\""
+][
+  from == "numeric" & to == "character",
+  note := "fixed notation, up to 15 significant digits (scientific outside [1e-15, 2^53)); refused when the text does not read back as the same number"
+][
+  from == "POSIXct" & to == "character",
+  note := "the local time in the stamp's own timezone, which the text does not record"
 ][
   to == "integer" & from %in% c("numeric", "Date", "POSIXct", "character"),
   note := "a fraction is truncated toward zero (refused with truncate = FALSE); must be within integer range"
@@ -55,7 +62,16 @@ CAST_RULES <- rbindlist(lapply(CAST_FROM, function(from) {
   note := "days since 1970-01-01; a fraction of a day is truncated (refused with truncate = FALSE)"
 ][
   from == "POSIXct" & to == "Date",
-  note := "calendar day in the stamp's own timezone; a time of day is truncated (refused with truncate = FALSE)"
+  note := "calendar day in the stamp's own timezone (the session's, for a stamp with none); a time of day is truncated (refused with truncate = FALSE)"
+][
+  from == "integer64" & to == "character",
+  note := "the decimal text (needs bit64)"
+][
+  from == "integer64" & to == "numeric",
+  note := "exact below 2^53, larger values are refused (needs bit64)"
+][
+  from == "integer64" & to == "integer",
+  note := "must be within integer range (needs bit64)"
 ][
   from == "factor" & to == "character",
   note := "the labels, never the integer codes"
@@ -64,7 +80,7 @@ CAST_RULES <- rbindlist(lapply(CAST_FROM, function(from) {
   # Nothing but text becomes a logical: 0/1 is a number that happens to look
   # like a flag, and reading it as one is a guess about intent.
   (to == "logical" & from != "character") |
-    (from == "logical" & to == "Date"),
+    (from %in% c("logical", "integer64") & to == "Date"),
   `:=`(allowed = FALSE, note = "no sound conversion")
 ][
   # A factor's labels can be parsed like any text, but doing it implicitly is
@@ -105,6 +121,15 @@ cast_rule <- function(from, to) {
 #' timestamp to its calendar day) is a *truncation*: it is made when
 #' `truncate = TRUE`, which is the default, and refused otherwise.
 #'
+#' Text is parsed strictly: anything that is not a number, a logical literal
+#' or a date in `date_format` is refused, and that includes the text `"NA"`,
+#' since a missing value has to arrive as `NA`. `"NaN"` and `"Inf"` are
+#' numbers. A double written as text is written in fixed notation, so
+#' `100000` becomes `"100000"`, not `"1e+05"`, and a timestamp written as text
+#' is its local time in its own timezone, which the text does not record. An
+#' `integer64` column (from \pkg{bit64}) becomes a double when that is exact,
+#' an integer within range, or its decimal text.
+#'
 #' @param wide If `TRUE` (the default), a grid of source types by target types,
 #'   with `"yes"` for an allowed conversion, `"-"` for a refused one and `"="`
 #'   where source and target are the same type. If `FALSE`, one row per pair,
@@ -134,9 +159,12 @@ cast_rules <- function(wide = TRUE) {
 #' column cannot be one type to one of them and another type to the next.
 #'
 #' integer64 is stored as a double, and \code{is.numeric()} says so; read as a
-#' number it would be silently wrong. It is named for what it is, which no cast
-#' rule accepts, so a table holding one is refused with a pointer to
-#' \code{normalize_dt()}.
+#' number it would be silently wrong. It is named for what it is, and converted
+#' through bit64 (see \code{CAST_RULES}); it is never a target type, so a
+#' benchmark holding one is refused with a pointer to \code{normalize_dt()}.
+#'
+#' An ordered factor is a factor (its first class is \code{"ordered"}), and is
+#' named as one.
 #'
 #' @param v A vector.
 #' @return A length-1 character: one of \code{CAST_FROM}, or the vector's first
@@ -149,6 +177,8 @@ col_type <- function(v) {
     "POSIXct"
   } else if (inherits(v, "integer64")) {
     "integer64"
+  } else if (is.factor(v)) {
+    "factor"
   } else if (is.character(v)) {
     "character"
   } else if (is.logical(v)) {
