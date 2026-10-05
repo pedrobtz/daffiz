@@ -61,7 +61,7 @@ conversion is the caller's choice and not a silent default.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">normalize_dt</span><span class="op">(</span><span class="va">dt</span>, to <span class="op">=</span> <span class="va">NORMALIZE_TO</span>, cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">dt</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">normalize_dt</span><span class="op">(</span><span class="va">dt</span>, to <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>factor <span class="op">=</span> <span class="st">"character"</span><span class="op">)</span>, cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">dt</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -73,9 +73,10 @@ conversion is the caller's choice and not a silent default.</p>
 
 
 <dt id="arg-to">to<a class="anchor" aria-label="anchor" href="#arg-to"></a></dt>
-<dd><p>Named character: which supported type each other type becomes.
-The default only maps <code>factor</code> to <code>"character"</code>. A column whose type is
-not named here is an error, not a guess.</p></dd>
+<dd><p>Named character: which supported type each other type becomes,
+named by <code>"factor"</code>, <code>"POSIXct"</code> or <code>"integer64"</code>. The default only maps
+<code>factor</code> to <code>"character"</code>. A column whose type is not named here is an
+error, not a guess.</p></dd>
 
 
 <dt id="arg-cols">cols<a class="anchor" aria-label="anchor" href="#arg-cols"></a></dt>
@@ -90,11 +91,18 @@ not, and callers must treat it as read-only.</p>
     </div>
     <div id="details">
     <h2>Details</h2>
-    <p>A factor becomes its labels by default. A timestamp (POSIXct) has no
-default: <code>c(POSIXct = "Date")</code> keeps the calendar day in the stamp's own
-zone and drops the time, so two stamps on the same day become one value;
-<code>c(POSIXct = "character")</code> keeps the full stamp as text. Name the one you
-mean in <code>to</code>.</p>
+    <p>A factor (ordered or not) becomes its labels by default. A timestamp
+(POSIXct) has no default: <code>c(POSIXct = "Date")</code> keeps the calendar day in
+the stamp's own zone (the session's zone for a stamp with none, as it
+prints) and drops the time, so two stamps on the same day become one
+value; <code>c(POSIXct = "character")</code> keeps the stamp as text, written as its
+local time in its own zone without naming the zone, so the same instant
+held in two zones becomes two different strings: give both tables the
+same zone first. Name the one you mean in <code>to</code>.</p>
+<p>An <code>integer64</code> column (from <span class="pkg">bit64</span>) has no default either:
+<code>c(integer64 = "numeric")</code> is exact below 2^53 and refuses larger values,
+<code>"integer"</code> refuses values outside the integer range, and <code>"character"</code>
+keeps every digit.</p>
     </div>
 
     <div id="ref-examples">

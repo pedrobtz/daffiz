@@ -81,7 +81,11 @@
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
+<p>Install the released version from CRAN:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"daffiz"</span><span class="op">)</span></span></code></pre></div>
+<p>Or the development version from GitHub:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"pedrobtz/daffiz"</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -89,7 +93,7 @@
 <h2 id="comparing-against-a-benchmark">Comparing against a benchmark<a class="anchor" aria-label="anchor" href="#comparing-against-a-benchmark"></a>
 </h2>
 <p>A benchmark table, and the same data after a round trip through storage. On the way, the column names changed case, the ids became text, <code>units</code> came back as a double, a load timestamp was added, one row was lost and one was added:</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/pedrobtz/daffiz" class="external-link">daffiz</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">benchmark</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -138,7 +142,7 @@
 <strong><code>units</code> was cast to the benchmark’s integer type.</strong> Its <code>10.4</code> was truncated to <code>10</code>, which is announced in a message and recorded in <code>attr(d, "truncated")</code>. Pass <code>truncate = FALSE</code> to refuse such casts instead.</li>
 </ul>
 <p><code><a href="reference/diff_summary.html">diff_summary()</a></code> condenses the result per measure:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_summary.html">diff_summary</a></span><span class="op">(</span><span class="va">d</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    metric     n n_same n_changed n_only_x n_only_y max_abs_diff mean_abs_diff      rmse</span></span>
 <span><span class="co">#&gt;    &lt;char&gt; &lt;int&gt;  &lt;int&gt;     &lt;int&gt;    &lt;int&gt;    &lt;int&gt;        &lt;num&gt;         &lt;num&gt;     &lt;num&gt;</span></span>
@@ -149,13 +153,13 @@
 <h2 id="comparing-two-tables-as-equals">Comparing two tables as equals<a class="anchor" aria-label="anchor" href="#comparing-two-tables-as-equals"></a>
 </h2>
 <p>In <code>mode = "equal"</code> nothing is cast or dropped, so the same two tables do not even compare:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_table.html">diff_table</a></span><span class="op">(</span><span class="va">benchmark</span>, <span class="va">stored</span>, mode <span class="op">=</span> <span class="st">"equal"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Error: mode = "equal" needs the same columns in both tables.</span></span>
 <span><span class="co">#&gt;   only in `x`: &lt;none&gt;</span></span>
 <span><span class="co">#&gt;   only in `y`: loaded_at</span></span></code></pre></div>
 <p>Row order never matters; rows are aligned on their identity:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_table.html">diff_table</a></span><span class="op">(</span><span class="va">benchmark</span>, <span class="va">benchmark</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span><span class="op">)</span>, <span class="op">]</span>, mode <span class="op">=</span> <span class="st">"equal"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Key: &lt;ID, REGION, UNITS, metric&gt;</span></span>
 <span><span class="co">#&gt;       ID REGION UNITS metric row_id_x row_id_y value_x value_y  diff status</span></span>
@@ -169,7 +173,7 @@
 <h2 id="do-they-have-the-same-rows">Do they have the same rows?<a class="anchor" aria-label="anchor" href="#do-they-have-the-same-rows"></a>
 </h2>
 <p>With no numeric measures, rows are compared as wholes. A repeated row counts once per copy:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_table.html">diff_table</a></span><span class="op">(</span></span>
 <span>  <span class="va">benchmark</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id"</span>, <span class="st">"region"</span><span class="op">)</span><span class="op">]</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>ID <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3L</span>, <span class="fl">1L</span>, <span class="fl">2L</span>, <span class="fl">2L</span><span class="op">)</span>, REGION <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"east"</span>, <span class="st">"north"</span>, <span class="st">"south"</span>, <span class="st">"south"</span><span class="op">)</span><span class="op">)</span></span>
@@ -188,7 +192,7 @@
 <h2 id="in-tests">In tests<a class="anchor" aria-label="anchor" href="#in-tests"></a>
 </h2>
 <p><code><a href="reference/expect_table_equal.html">expect_table_equal()</a></code> is a testthat expectation built on <code><a href="reference/diff_table.html">diff_table()</a></code>. Its second argument, <code>expected</code>, is the benchmark:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">test_that</span><span class="op">(</span><span class="st">"the pipeline reproduces the reference output"</span>, <span class="op">{</span></span>
 <span>  <span class="fu"><a href="reference/expect_table_equal.html">expect_table_equal</a></span><span class="op">(</span><span class="fu">run_pipeline</span><span class="op">(</span><span class="op">)</span>, <span class="va">reference</span>, tolerance <span class="op">=</span> <span class="fl">1e-8</span><span class="op">)</span></span>
 <span><span class="op">}</span><span class="op">)</span></span></code></pre></div>

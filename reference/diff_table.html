@@ -144,8 +144,8 @@ refused rather than read as one.</p></dd>
     <h2>Value</h2>
     <p>A <code>data.table</code> keyed by the identity columns (and <code>key_seq</code>,
 <code>metric</code> when present), with <code>status</code> a factor with levels <code>same</code>,
-<code>changed</code>, <code>only_x</code> and <code>only_y</code>. Its shape is in <code>attr(, "shape")</code>:
-The key includes <code>row_number</code> when <code>row_key</code> added it.</p><ul><li><p><code>"cells"</code>, the usual one: one row per row and measure, with <code>key_seq</code>
+<code>changed</code>, <code>only_x</code> and <code>only_y</code>. The key includes <code>row_number</code> when
+<code>row_key</code> added it. Its shape is in <code>attr(, "shape")</code>:</p><ul><li><p><code>"cells"</code>, the usual one: one row per row and measure, with <code>key_seq</code>
 (only when duplicates were numbered), <code>metric</code>, <code>row_id_x</code>, <code>row_id_y</code>
 (the source rows, <code>NA</code> on the side the row is missing from),
 <code>value_x</code>, <code>value_y</code>, <code>diff</code> (<code>value_y - value_x</code>) and <code>status</code>.</p></li>
@@ -194,7 +194,10 @@ number or a timestamp to a whole day – is made by default, because the
 benchmark's types are taken as the truth: storage such as Spark or Delta
 turns a locally built double into an integer, and the comparison has to
 follow it. Each truncation is announced in a message and recorded in
-<code>attr(, "truncated")</code>. Set <code>truncate = FALSE</code> to refuse such casts instead.</p>
+<code>attr(, "truncated")</code>: per column, the count and up to three examples, not
+the rows. A truncated key column can pair rows that differ (<code>1.5</code> in <code>y</code>
+becomes <code>1</code> and aligns with <code>x</code>'s <code>1</code>), so read the message when it names
+a key. Set <code>truncate = FALSE</code> to refuse such casts instead.</p>
     </div>
     <div id="measures-and-identity">
     <h2>Measures and identity</h2>
@@ -206,7 +209,9 @@ when given, otherwise every column that is not a measure. With <code>by</code> g
 a column in neither role is not compared: that is announced in benchmark
 mode and an error in equal mode, which cannot call two tables equal while
 ignoring a column. A numeric column that is part of the identity is matched
-exactly, with no tolerance.</p>
+exactly, with no tolerance. So is a Date key, on its exact value: a Date
+can hold a fraction of a day, and two Dates that print as the same day
+then do not align.</p>
 <p>With no measures at all the question becomes <em>do the two tables have the
 same rows?</em>, and the result has one row per row (see Value).</p>
     </div>
@@ -250,6 +255,31 @@ by at most <code>tolerance</code>. Two missing values are the same; with
 <code>nan_is_na = TRUE</code> NaN and NA are the same missing value, in measures and in
 key columns alike.</p>
     </div>
+    <div id="conditions">
+    <h2>Conditions</h2>
+
+
+<p>Every condition <code>diff_table()</code> signals has a class, so it can be caught
+or tested for without matching its text, and inherits from
+<code>daffiz_error</code>, <code>daffiz_warning</code> or <code>daffiz_message</code>. An error means the
+question cannot be answered; a warning, that the answer may be wrong; a
+message reports an expected consequence of the settings.</p><ul><li><p><code>daffiz_error_input</code>: an argument is malformed.</p></li>
+<li><p><code>daffiz_error_columns</code>: columns missing, unknown, or left uncompared in
+equal mode; names that are empty or collide once normalized.</p></li>
+<li><p><code>daffiz_error_types</code>: a column of a type that cannot be compared, or
+types that differ where nothing is cast.</p></li>
+<li><p><code>daffiz_error_cast</code>: a value that cannot be cast to the benchmark's type.</p></li>
+<li><p><code>daffiz_error_keys</code>: no key column to align rows on.</p></li>
+<li><p><code>daffiz_error_measures</code>: <code>measures</code> names something that cannot be
+measured, or a column <code>by</code> names too.</p></li>
+<li><p><code>daffiz_error_duplicates</code>: repeated keys under <code>duplicates = "error"</code>.</p></li>
+<li><p><code>daffiz_error_disjoint</code>: no key appears in both tables.</p></li>
+<li><p><code>daffiz_error_dependency</code>: a suggested package is needed but missing.</p></li>
+<li><p><code>daffiz_warning_duplicates</code>: repeated keys paired in arrival order.</p></li>
+<li><p><code>daffiz_message_dropped_columns</code>, <code>daffiz_message_ignored_columns</code>,
+<code>daffiz_message_no_measures</code>, <code>daffiz_message_truncation</code>: columns of
+<code>y</code> dropped, columns not compared, no measures, values truncated.</p></li>
+</ul></div>
 
     <div id="ref-examples">
     <h2>Examples</h2>

@@ -84,6 +84,14 @@ with each rule's <code>note</code>.</p></dd>
     <p>A cast that drops the fraction of a value (a double to an integer, a
 timestamp to its calendar day) is a <em>truncation</em>: it is made when
 <code>truncate = TRUE</code>, which is the default, and refused otherwise.</p>
+<p>Text is parsed strictly: anything that is not a number, a logical literal
+or a date in <code>date_format</code> is refused, and that includes the text <code>"NA"</code>,
+since a missing value has to arrive as <code>NA</code>. <code>"NaN"</code> and <code>"Inf"</code> are
+numbers. A double written as text is written in fixed notation, so
+<code>100000</code> becomes <code>"100000"</code>, not <code>"1e+05"</code>, and a timestamp written as text
+is its local time in its own timezone, which the text does not record. An
+<code>integer64</code> column (from <span class="pkg">bit64</span>) becomes a double when that is exact,
+an integer within range, or its decimal text.</p>
     </div>
 
     <div id="ref-examples">
@@ -98,6 +106,7 @@ timestamp to its calendar day) is a <em>truncation</em>: it is made when
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5:   integer       yes       -    yes     yes       =</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6:   POSIXct       yes       -    yes     yes     yes</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 7:    factor       yes       -      -       -       -</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8: integer64       yes       -      -     yes     yes</span>
 <span class="r-in"><span><span class="fu">cast_rules</span><span class="op">(</span>wide <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          from        to allowed</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        &lt;char&gt;    &lt;char&gt;  &lt;lgcl&gt;</span>
@@ -131,42 +140,52 @@ timestamp to its calendar day) is a <em>truncation</em>: it is made when
 <span class="r-out co"><span class="r-pr">#&gt;</span> 28:    factor      Date   FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 29:    factor   numeric   FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 30:    factor   integer   FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 31: integer64 character    TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 32: integer64   logical   FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 33: integer64      Date   FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 34: integer64   numeric    TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 35: integer64   integer    TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          from        to allowed</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        &lt;char&gt;    &lt;char&gt;  &lt;lgcl&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                           note</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                         &lt;char&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  1:                                                                                       parsed from the text</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  2:                                                                                       parsed from the text</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  3:                                                                                       parsed from the text</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  4:          a fraction is truncated toward zero (refused with truncate = FALSE); must be within integer range</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  5:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  6:                                                                                        no sound conversion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  7:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  8:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  9:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10:                                                                                        no sound conversion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 11:                                                          days (Date) or seconds (POSIXct) since 1970-01-01</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 12: days (Date) or seconds (POSIXct) since 1970-01-01; a fraction is truncated (refused with truncate = FALSE)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 13:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 14:                                                                                        no sound conversion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 15:                    days since 1970-01-01; a fraction of a day is truncated (refused with truncate = FALSE)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 16:          a fraction is truncated toward zero (refused with truncate = FALSE); must be within integer range</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 17:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 18:                                                                                        no sound conversion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 19:                                                                                      days since 1970-01-01</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 20:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 21:                                                                                                      as is</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 22:                                                                                        no sound conversion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 23:       calendar day in the stamp's own timezone; a time of day is truncated (refused with truncate = FALSE)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 24:                                                          days (Date) or seconds (POSIXct) since 1970-01-01</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 25: days (Date) or seconds (POSIXct) since 1970-01-01; a fraction is truncated (refused with truncate = FALSE)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 26:                                                                        the labels, never the integer codes</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 27:                                                               convert the labels with as.character() first</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 28:                                                               convert the labels with as.character() first</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 29:                                                               convert the labels with as.character() first</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 30:                                                               convert the labels with as.character() first</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                           note</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                         &lt;char&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                            note</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                          &lt;char&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  1:                                                                         parsed from the text; a missing value must be NA, not the text "NA"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  2:                                                                         parsed from the text; a missing value must be NA, not the text "NA"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  3:                                                                         parsed from the text; a missing value must be NA, not the text "NA"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  4:                                           a fraction is truncated toward zero (refused with truncate = FALSE); must be within integer range</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  5:                                                                                                                                       as is</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  6:                                                                                                                         no sound conversion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  7:                                                                                                                                       as is</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  8:                                                                                                                                       as is</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  9:                                                                                                                                       as is</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10:                                                                                                                         no sound conversion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11:                                                                                           days (Date) or seconds (POSIXct) since 1970-01-01</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12:                                  days (Date) or seconds (POSIXct) since 1970-01-01; a fraction is truncated (refused with truncate = FALSE)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13: fixed notation, up to 15 significant digits (scientific outside [1e-15, 2^53)); refused when the text does not read back as the same number</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14:                                                                                                                         no sound conversion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15:                                                     days since 1970-01-01; a fraction of a day is truncated (refused with truncate = FALSE)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16:                                           a fraction is truncated toward zero (refused with truncate = FALSE); must be within integer range</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17:                                                                                                                                       as is</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18:                                                                                                                         no sound conversion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19:                                                                                                                       days since 1970-01-01</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20:                                                                                                                                       as is</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 21:                                                                  the local time in the stamp's own timezone, which the text does not record</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 22:                                                                                                                         no sound conversion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 23: calendar day in the stamp's own timezone (the session's, for a stamp with none); a time of day is truncated (refused with truncate = FALSE)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 24:                                                                                           days (Date) or seconds (POSIXct) since 1970-01-01</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 25:                                  days (Date) or seconds (POSIXct) since 1970-01-01; a fraction is truncated (refused with truncate = FALSE)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 26:                                                                                                         the labels, never the integer codes</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 27:                                                                                                convert the labels with as.character() first</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 28:                                                                                                convert the labels with as.character() first</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 29:                                                                                                convert the labels with as.character() first</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 30:                                                                                                convert the labels with as.character() first</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 31:                                                                                                              the decimal text (needs bit64)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 32:                                                                                                                         no sound conversion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 33:                                                                                                                         no sound conversion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 34:                                                                                   exact below 2^53, larger values are refused (needs bit64)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 35:                                                                                                  must be within integer range (needs bit64)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                            note</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                          &lt;char&gt;</span>
 </code></pre></div>
     </div>
   </div>
