@@ -161,6 +161,10 @@ Each is covered by a test.
   caller's own spelling (`name_map()$label`).
 - Keep the public surface small; new features go through `.agents/roadmap.md`
   first.
-- `docs/`, `CLAUDE.md`, `.claude/`, `.agents/`, `benchmarks/` and
-  `inst/WORDLIST` are listed in `.Rbuildignore`. `benchmarks/` still measures
-  the draft's pipeline.
+- `docs/`, `.claude/`, `.agents/`, `benchmarks/` and `inst/WORDLIST` are
+  listed in `.Rbuildignore`. `benchmarks/` still measures the draft's
+  pipeline.
+- This file lives in `.claude/`, not at the top level: pkgdown renders every
+  top-level `.md` file into the site, with no setting to exclude one.
+- `docs/` is the local pkgdown build and is git-ignored; the site is built
+  and deployed by `.github/workflows/pkgdown.yaml`.

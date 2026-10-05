@@ -19,6 +19,14 @@ back to its source row in both tables.
 
 ## Installation
 
+Install the released version from CRAN:
+
+```r
+install.packages("daffiz")
+```
+
+Or the development version from GitHub:
+
 ```r
 # install.packages("pak")
 pak::pak("pedrobtz/daffiz")
