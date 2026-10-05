@@ -17,11 +17,19 @@ cast_sample <- function(from, to) {
     numeric = 3.5,
     integer = 3L,
     POSIXct = as.POSIXct("2024-03-05 23:30:00", tz = "UTC"),
-    factor = factor("abc")
+    factor = factor("abc"),
+    integer64 = bit64::as.integer64(3)
   )
 }
 
-allowed_ok <- CAST_RULES[allowed == TRUE][, .(
+# integer64 converts through bit64, a suggested package.
+cast_rules_here <- if (requireNamespace("bit64", quietly = TRUE)) {
+  CAST_RULES
+} else {
+  CAST_RULES[from != "integer64"]
+}
+
+allowed_ok <- cast_rules_here[allowed == TRUE][, .(
   ok = {
     v <- cast_sample(from, to)
     out <- tryCatch(cast_value(v, to, "col"), error = function(e) e)
@@ -38,7 +46,7 @@ test_that("cast_value: every pair in the rules table", {
 
 if (!all(allowed_ok$ok)) print(allowed_ok[ok == FALSE])
 
-refused_ok <- CAST_RULES[allowed == FALSE][, .(
+refused_ok <- cast_rules_here[allowed == FALSE][, .(
   ok = inherits(
     tryCatch(cast_value(cast_sample(from, to), to, "col"), error = function(e) e),
     "error"
@@ -291,13 +299,133 @@ test_that("a number becomes the Date it prints as, never a fractional one", {
   expect_identical(format(d), c("1970-01-02", "1969-12-31"))
 })
 
-test_that("a stamp with no zone is read as UTC, whatever the session's zone", {
-  stamp <- as.POSIXct("2024-01-01 23:30:00", tz = "UTC")
-  attr(stamp, "tzone") <- ""
-  old_tz <- Sys.getenv("TZ")
-  on.exit(Sys.setenv(TZ = old_tz))
-  Sys.setenv(TZ = "Asia/Tokyo")
-  expect_equal(as.vector(cast_value(stamp, "Date", "D")), as.Date("2024-01-01"))
+local_tz <- function(tz, env = parent.frame()) {
+  old_tz <- Sys.getenv("TZ", unset = NA)
+  Sys.setenv(TZ = tz)
+  do.call(on.exit, list(quote(
+    if (is.na(old_tz)) Sys.unsetenv("TZ") else Sys.setenv(TZ = old_tz)
+  ), add = TRUE), envir = env)
+  env$old_tz <- old_tz
+  invisible()
+}
+
+test_that("a stamp with no zone is read in the session's zone, as it prints", {
+  local_tz("America/New_York")
+  stamp <- as.POSIXct("2024-01-01 23:30:00")
+  expect_identical(attr(stamp, "tzone"), "")
+  out <- cast_value(stamp, "Date", "D")
+  expect_equal(as.vector(out), as.Date("2024-01-01"))
+  # The record shows the day the stamp prints as, not the next UTC day.
+  expect_identical(attr(out, "truncated")$examples, "2024-01-01 23:30:00 -> 2024-01-01")
+  expect_equal(
+    normalize_dt(data.frame(d = stamp), to = c(POSIXct = "Date"))$d,
+    as.Date("2024-01-01")
+  )
+  # The midnight of the session's zone is a whole day, not a truncation.
+  expect_null(attr(cast_value(as.POSIXct("2024-01-01 00:00:00"), "Date", "D"), "truncated"))
+})
+
+test_that("a stamp with a zone is read in that zone, whatever the session's", {
+  local_tz("America/New_York")
+  expect_equal(
+    as.vector(cast_value(as.POSIXct("2024-01-01 23:30:00", tz = "UTC"), "Date", "D")),
+    as.Date("2024-01-01")
+  )
+  expect_equal(
+    as.vector(cast_value(as.POSIXct("2024-01-02 08:30:00", tz = "Asia/Tokyo"), "Date", "D")),
+    as.Date("2024-01-02")
+  )
+})
+
+test_that("a stamp on a day with no midnight is truncated, not a crash", {
+  # America/Havana starts DST at 00:00 on 2024-03-10, so that day has no
+  # midnight to compare with.
+  stamp <- as.POSIXct("2024-03-10 12:00:00", tz = "America/Havana")
+  expect_message(
+    d <- diff_table(data.frame(d = as.Date("2024-03-10"), v = 1), data.frame(d = stamp, v = 1)),
+    class = "daffiz_message_truncation"
+  )
+  expect_identical(as.character(d$status), "same")
+  expect_equal(
+    normalize_dt(data.frame(d = stamp), to = c(POSIXct = "Date"))$d,
+    as.Date("2024-03-10")
+  )
+  expect_error(
+    cast_value(stamp, "Date", "D", truncate = FALSE),
+    "has a time of day", class = "daffiz_error_cast"
+  )
+})
+
+test_that("a double written as text has no exponent", {
+  v <- c(100000, 1e-4, 1e15, 1234000000, 2e5, 0.5, 1, -0, -123456, NA, Inf, -Inf, NaN)
+  expect_identical(
+    cast_value(v, "character", "C"),
+    c(
+      "100000", "0.0001", "1000000000000000", "1234000000", "200000", "0.5",
+      "1", "0", "-123456", NA, "Inf", "-Inf", "NaN"
+    )
+  )
+  # More than 15 significant digits is still refused.
+  expect_error(cast_value(0.1 + 0.2, "character", "C"), "loses precision", class = "daffiz_error_cast")
+  # Text ids in the benchmark meet numeric ids in the candidate.
+  x <- data.frame(id = c("100000", "123456"), v = c(1, 2))
+  y <- data.frame(id = c(100000, 123456), v = c(1, 2))
+  d <- diff_table(x, y)
+  expect_identical(as.character(d$status), c("same", "same"))
+  expect_identical(d$ID, c("100000", "123456"))
+})
+
+test_that("text NaN and Inf parse as numbers; the text NA does not", {
+  expect_identical(
+    cast_value(c("1", "NaN", "Inf", "-Inf", NA), "numeric", "N"),
+    c(1, NaN, Inf, -Inf, NA)
+  )
+  expect_error(cast_value(c("1", "NA"), "numeric", "N"), "not a number: NA", class = "daffiz_error_cast")
+  d <- diff_table(data.frame(id = 1:2, v = c(1, NaN)), data.frame(id = 1:2, v = c("1", "NaN")))
+  expect_identical(as.character(d$status), c("same", "same"))
+  # With nan_is_na = FALSE, the parsed NaN is still a NaN.
+  d <- diff_table(
+    data.frame(id = 1:2, v = c(1, NaN)), data.frame(id = 1:2, v = c("1", "NaN")),
+    nan_is_na = FALSE
+  )
+  expect_identical(as.character(d$status), c("same", "same"))
+})
+
+test_that("an ordered factor is a factor: it becomes its labels", {
+  f <- factor(c("b", "a"), levels = c("b", "a"), ordered = TRUE)
+  expect_identical(cast_value(f, "character", "K"), c("b", "a"))
+  expect_identical(normalize_dt(data.frame(k = f))$k, c("b", "a"))
+  d <- diff_table(data.frame(k = c("b", "a"), v = c(1, 2)), data.frame(k = f, v = c(1, 2)))
+  expect_identical(as.character(d$status), c("same", "same"))
+})
+
+test_that("integer64 converts through bit64, exactly or not at all", {
+  skip_if_not_installed("bit64")
+  big <- bit64::as.integer64(c("1", "-2", NA, "9007199254740993"))
+  small <- big[1:3]
+  expect_identical(cast_value(small, "numeric", "N"), c(1, -2, NA))
+  expect_identical(cast_value(small, "integer", "N"), c(1L, -2L, NA))
+  expect_identical(cast_value(big, "character", "N"), c("1", "-2", NA, "9007199254740993"))
+  expect_error(cast_value(big, "numeric", "N"), "2\\^53 or more.*9007199254740993", class = "daffiz_error_cast")
+  expect_error(
+    cast_value(bit64::as.integer64("3000000000"), "integer", "N"),
+    "outside integer range", class = "daffiz_error_cast"
+  )
+  expect_error(cast_value(small, "Date", "N"), "no sound conversion", class = "daffiz_error_cast")
+
+  y <- data.frame(id = small[1:2], v = c(1, 2))
+  out <- normalize_dt(y, to = c(integer64 = "numeric"))
+  expect_identical(out$id, c(1, -2))
+  expect_identical(normalize_dt(y, to = c(integer64 = "character"))$id, c("1", "-2"))
+  expect_identical(normalize_dt(y, to = c(integer64 = "integer"))$id, c(1L, -2L))
+  # As the candidate in benchmark mode, it is cast like any other column.
+  d <- diff_table(data.frame(id = c(1L, -2L), v = c(1, 2)), y)
+  expect_identical(as.character(d$status), c("same", "same"))
+})
+
+test_that("normalize_dt's documented default is its real one", {
+  expect_identical(formals(normalize_dt)$to, quote(c(factor = "character")))
+  expect_identical(eval(formals(normalize_dt)$to), NORMALIZE_TO)
 })
 
 test_that("NaN becomes NA only when they are the same missing value", {

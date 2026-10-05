@@ -4,14 +4,15 @@
 \alias{normalize_dt}
 \title{Convert a table to the types daffiz compares}
 \usage{
-normalize_dt(dt, to = NORMALIZE_TO, cols = names(dt))
+normalize_dt(dt, to = c(factor = "character"), cols = names(dt))
 }
 \arguments{
 \item{dt}{A data.frame or data.table.}
 
-\item{to}{Named character: which supported type each other type becomes.
-The default only maps \code{factor} to \code{"character"}. A column whose type is
-not named here is an error, not a guess.}
+\item{to}{Named character: which supported type each other type becomes,
+named by \code{"factor"}, \code{"POSIXct"} or \code{"integer64"}. The default only maps
+\code{factor} to \code{"character"}. A column whose type is not named here is an
+error, not a guess.}
 
 \item{cols}{The columns to consider, by default all of them.}
 }
@@ -28,11 +29,19 @@ the columns that are something else, explicitly, so that any lossy
 conversion is the caller's choice and not a silent default.
 }
 \details{
-A factor becomes its labels by default. A timestamp (POSIXct) has no
-default: \code{c(POSIXct = "Date")} keeps the calendar day in the stamp's own
-zone and drops the time, so two stamps on the same day become one value;
-\code{c(POSIXct = "character")} keeps the full stamp as text. Name the one you
-mean in \code{to}.
+A factor (ordered or not) becomes its labels by default. A timestamp
+(POSIXct) has no default: \code{c(POSIXct = "Date")} keeps the calendar day in
+the stamp's own zone (the session's zone for a stamp with none, as it
+prints) and drops the time, so two stamps on the same day become one
+value; \code{c(POSIXct = "character")} keeps the stamp as text, written as its
+local time in its own zone without naming the zone, so the same instant
+held in two zones becomes two different strings: give both tables the
+same zone first. Name the one you mean in \code{to}.
+
+An \code{integer64} column (from \pkg{bit64}) has no default either:
+\code{c(integer64 = "numeric")} is exact below 2^53 and refuses larger values,
+\code{"integer"} refuses values outside the integer range, and \code{"character"}
+keeps every digit.
 }
 \examples{
 x <- data.frame(

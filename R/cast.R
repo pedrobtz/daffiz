@@ -1,5 +1,28 @@
 # Casting to the reference types ---------------------------------------------
 
+#' Write doubles as text the way a table of text ids writes them
+#'
+#' \code{as.character()} follows R's \code{scipen} rule, so a round number
+#' whose exponent form is shorter comes out as \code{"1e+05"}, and never joins
+#' the benchmark's \code{"100000"}. Values are written in fixed notation with
+#' up to 15 significant digits instead, which is how such ids are written.
+#' Outside [1e-15, 2^53) fixed notation would mean a run of zeros or digits
+#' beyond the double's precision, and no table of ids writes those, so they
+#' keep \code{as.character()}'s form.
+#'
+#' @param v A double vector.
+#' @return A character vector, NA where \code{v} is NA (NaN is \code{"NaN"}).
+#' @noRd
+num_to_text <- function(v) {
+  txt <- as.character(v)
+  fixed <- is.finite(v) & (v == 0 | (abs(v) >= 1e-15 & abs(v) < 2^53))
+  if (any(fixed)) {
+    # `+ 0` turns -0 into 0, which as.character() writes as "0" as well.
+    txt[fixed] <- trimws(formatC(v[fixed] + 0, format = "fg", digits = 15L))
+  }
+  txt
+}
+
 #' Cast one column to a target type
 #'
 #' One column of \code{v} cast to \code{to}. Refuses anything ambiguous instead
@@ -63,6 +86,30 @@ cast_value <- function(v, to, nm, origin = NULL, date_format = "%Y-%m-%d",
     )
   }
 
+  # integer64 is a double's bits holding a 64-bit integer: only bit64 can read
+  # it. It becomes its decimal text, or a double when that is exact (every
+  # integer below 2^53 is), and the double then meets the rules below, the
+  # integer range among them.
+  if (from == "integer64") {
+    if (!requireNamespace("bit64", quietly = TRUE)) {
+      daffiz_abort(
+        "daffiz_error_dependency",
+        sprintf("column %s: converting integer64 needs the bit64 package", nm)
+      )
+    }
+    if (to == "character") {
+      return(as.character(v))
+    }
+    # 2^53 + 1 rounds to 2^53 on the way, so the check cannot be made after
+    # the fact on a value above it: from 2^53 on, every value is refused.
+    dbl <- suppressWarnings(as.double(v))
+    off <- !is.na(dbl) & abs(dbl) >= 2^53
+    if (any(off)) {
+      refuse("loses precision as a double (2^53 or more)", as.character(v[off]))
+    }
+    return(if (to == "numeric") dbl else hop(dbl))
+  }
+
   # A factor means its labels, never its integer codes -- as.numeric() on a
   # factor silently hands back the codes -- so convert the labels instead.
   if (from == "factor") {
@@ -80,10 +127,14 @@ cast_value <- function(v, to, nm, origin = NULL, date_format = "%Y-%m-%d",
       as.logical(v)
     } else {
       # as.numeric() also accepts surrounding whitespace, hex ("0x10") and
-      # "Inf"/"NaN". All of them are numbers, so they are let through.
+      # "Inf"/"NaN". All of them are numbers, so they are let through: NaN is
+      # is.na() too, so it is told apart from a failed parse explicitly. The
+      # text "NA" is not a number and is refused like any other word; a
+      # missing value has to arrive as NA.
       num <- suppressWarnings(as.numeric(v))
-      if (any(is.na(num) & !is.na(v))) {
-        refuse("not a number", v[is.na(num) & !is.na(v)])
+      bad <- is.na(num) & !is.nan(num) & !is.na(v)
+      if (any(bad)) {
+        refuse("not a number", v[bad])
       }
       num
     }
@@ -102,19 +153,21 @@ cast_value <- function(v, to, nm, origin = NULL, date_format = "%Y-%m-%d",
   why <- NULL
   out <- switch(to,
     # A Date goes back out through the same format it would be read in by, so
-    # the two directions are inverse. Everything else is as.character()'s job.
+    # the two directions are inverse. A double is written the way a table of
+    # text ids writes it (see num_to_text()). Everything else is
+    # as.character()'s job.
     character = if (from == "Date") {
       format(v, date_format)
     } else if (from == "numeric") {
-      txt <- as.character(v)
-      # as.character() gives 15 significant digits, so two doubles that differ
-      # further out than that land on the same text and would join as one key.
-      # Reading the text back is what catches it. Non-finite values are left to
-      # the comparison: they print and re-read exactly.
+      txt <- num_to_text(v)
+      # Fifteen significant digits, so two doubles that differ further out
+      # than that land on the same text and would join as one key. Reading
+      # the text back is what catches it. Non-finite values are left to the
+      # comparison: they print and re-read exactly.
       off <- is.finite(v) & suppressWarnings(as.numeric(txt)) != v
       if (any(off)) {
-        # Printed at full precision: at as.character()'s 15 digits the offending
-        # value looks identical to the one it collides with.
+        # Printed at full precision: at 15 digits the offending value looks
+        # identical to the one it collides with.
         refuse("loses precision as text", format(v[off], digits = 17L))
       }
       txt
@@ -139,17 +192,19 @@ cast_value <- function(v, to, nm, origin = NULL, date_format = "%Y-%m-%d",
     numeric = as.numeric(v),
     Date = {
       if (from == "POSIXct") {
-        # Take the calendar day in the stamp's own zone, not UTC, so the date
-        # matches the timestamp as it prints. A stamp with no zone is read as
-        # UTC rather than as the session's zone, so the answer does not depend
-        # on the machine it runs on.
+        # Take the calendar day in the stamp's own zone, so the date matches
+        # the timestamp as it prints. A stamp with no zone (tzone "") prints
+        # in the session's zone, so that is the zone its day is read in: R
+        # gives it no other meaning, and as.Date() and format() agree.
         tz <- attr(v, "tzone")
-        tz <- if (is.null(tz) || !nzchar(tz[1L])) "UTC" else tz[1L]
+        tz <- if (is.null(tz) || !nzchar(tz[1L])) "" else tz[1L]
         d <- as.Date(v, tz = tz)
-        midnight <- as.numeric(as.POSIXct(format(d), tz = tz))
-        # Where a zone skips midnight (a DST change at 00:00) there is no
-        # midnight to match, and any stamp that day has a time of day.
-        lost <- !is.na(v) & (is.na(midnight) | midnight != as.numeric(v))
+        # The time of day is read off the stamp itself rather than by
+        # comparing it with the day's midnight: where a zone skips midnight
+        # (a DST change at 00:00) that midnight does not exist, and parsing
+        # it is an error rather than an NA.
+        lt <- as.POSIXlt(v, tz = tz)
+        lost <- !is.na(v) & (lt$hour != 0L | lt$min != 0L | lt$sec != 0)
         why <- "has a time of day"
         d
       } else if (from %in% c("integer", "numeric")) {
@@ -313,16 +368,25 @@ cast_dt <- function(x, y, cols = intersect(names(x), names(y)),
 #' the columns that are something else, explicitly, so that any lossy
 #' conversion is the caller's choice and not a silent default.
 #'
-#' A factor becomes its labels by default. A timestamp (POSIXct) has no
-#' default: `c(POSIXct = "Date")` keeps the calendar day in the stamp's own
-#' zone and drops the time, so two stamps on the same day become one value;
-#' `c(POSIXct = "character")` keeps the full stamp as text. Name the one you
-#' mean in `to`.
+#' A factor (ordered or not) becomes its labels by default. A timestamp
+#' (POSIXct) has no default: `c(POSIXct = "Date")` keeps the calendar day in
+#' the stamp's own zone (the session's zone for a stamp with none, as it
+#' prints) and drops the time, so two stamps on the same day become one
+#' value; `c(POSIXct = "character")` keeps the stamp as text, written as its
+#' local time in its own zone without naming the zone, so the same instant
+#' held in two zones becomes two different strings: give both tables the
+#' same zone first. Name the one you mean in `to`.
+#'
+#' An `integer64` column (from \pkg{bit64}) has no default either:
+#' `c(integer64 = "numeric")` is exact below 2^53 and refuses larger values,
+#' `"integer"` refuses values outside the integer range, and `"character"`
+#' keeps every digit.
 #'
 #' @param dt A data.frame or data.table.
-#' @param to Named character: which supported type each other type becomes.
-#'   The default only maps `factor` to `"character"`. A column whose type is
-#'   not named here is an error, not a guess.
+#' @param to Named character: which supported type each other type becomes,
+#'   named by `"factor"`, `"POSIXct"` or `"integer64"`. The default only maps
+#'   `factor` to `"character"`. A column whose type is not named here is an
+#'   error, not a guess.
 #' @param cols The columns to consider, by default all of them.
 #' @return A `data.table`. `dt` is never modified; a copy is made only when
 #'   there is something to convert, so the result is `dt` itself when there is
@@ -335,7 +399,7 @@ cast_dt <- function(x, y, cols = intersect(names(x), names(y)),
 #'   amount = 1.5
 #' )
 #' normalize_dt(x, to = c(POSIXct = "Date", factor = "character"))
-normalize_dt <- function(dt, to = NORMALIZE_TO, cols = names(dt)) {
+normalize_dt <- function(dt, to = c(factor = "character"), cols = names(dt)) {
   if (!is.data.frame(dt)) {
     daffiz_abort("daffiz_error_input", "`dt` must be a data.frame")
   }
