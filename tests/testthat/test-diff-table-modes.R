@@ -355,3 +355,51 @@ test_that("data.frames work as well as data.tables", {
   x <- data.frame(id = c("a", "b"), v = c(1, 2))
   expect_true(all(diff_table(x, x)$status == "same"))
 })
+
+# A computed NA (NA + 0, as.Date(NA) + 1) carries a different bit pattern from
+# a literal NA; R calls both NA, and so must the comparison.
+
+test_that("a computed NA key is the same key as a literal one: rows", {
+  na_q <- NA_real_ + 0
+  expect_message(
+    d <- diff_table(data.frame(k = c(NA_real_, na_q)), data.frame(k = NA_real_), by = "k"),
+    class = "daffiz_message_no_measures"
+  )
+  expect_identical(d$key_seq, 1:2)
+  expect_identical(as.character(d$status), c("same", "only_x"))
+  expect_identical(d$row_id_y, c(1L, NA))
+})
+
+test_that("a computed NA key is the same key as a literal one: cells", {
+  na_q <- NA_real_ + 0
+  x <- data.frame(k = c(NA_real_, na_q), v = c(1, 2))
+  y <- data.frame(k = NA_real_, v = 1)
+  for (nan_is_na in c(TRUE, FALSE)) {
+    expect_warning(
+      d <- diff_table(x, y, by = "k", nan_is_na = nan_is_na),
+      class = "daffiz_warning_duplicates"
+    )
+    expect_identical(as.character(d$status), c("same", "only_x"))
+    expect_error(
+      diff_table(x, y, by = "k", duplicates = "error", nan_is_na = nan_is_na),
+      class = "daffiz_error_duplicates"
+    )
+  }
+  # Two computed NAs against two literal ones pair up in arrival order.
+  expect_warning(
+    d <- diff_table(x, data.frame(k = c(na_q, NA_real_), v = c(1, 2)), by = "k", nan_is_na = FALSE),
+    class = "daffiz_warning_duplicates"
+  )
+  expect_identical(as.character(d$status), c("same", "same"))
+  d <- diff_table(x, data.frame(k = c(na_q, NA_real_), v = c(1, 2)), by = "k", duplicates = "aggregate")
+  expect_identical(as.character(d$status), "same")
+})
+
+test_that("a computed NA Date key is the same key as a literal one", {
+  d <- as.Date(c("2024-01-01", NA)) + 1
+  x <- data.frame(d = c(as.Date(NA), d))
+  out <- suppressMessages(diff_table(x, x))
+  expect_identical(out$row_id_x, out$row_id_y)
+  expect_true(all(out$status == "same"))
+  expect_setequal(out$row_id_y, 1:3)
+})
