@@ -43,8 +43,9 @@ num_to_text <- function(v) {
 #' @param truncate Whether a cast may drop a fraction: a double to an integer
 #'   (toward zero), a number to a Date (to the day it prints as), a timestamp
 #'   to a Date (the time of day). When it does, the result carries a
-#'   \code{"truncated"} attribute: the count and up to three examples. When
-#'   FALSE, the cast is refused instead.
+#'   \code{"truncated"} attribute: the count, up to three examples and the
+#'   positions of every truncated value. When FALSE, the cast is refused
+#'   instead.
 #' @param nan_is_na Whether NaN and NA are the same missing value. NaN has no
 #'   integer or Date form and becomes NA on the way; with FALSE that would hide
 #'   a difference, so the cast is refused instead.
@@ -248,11 +249,15 @@ cast_value <- function(v, to, nm, origin = NULL, date_format = "%Y-%m-%d",
     # One example per distinct value: a repeated value says nothing new.
     at <- which(lost)
     shown <- head(at[!duplicated(v[at])], 3L)
+    # The examples show what kind of loss it was; the positions are what lets
+    # the caller find every affected row afterwards, a `same` that was really
+    # 1.5 against 1 among them.
     attr(out, "truncated") <- list(
       n = sum(lost),
       examples = vapply(shown, function(i) {
         paste(format(v[i]), "->", format(out[i]))
-      }, character(1L))
+      }, character(1L)),
+      rows = at
     )
   }
 
@@ -263,13 +268,19 @@ cast_value <- function(v, to, nm, origin = NULL, date_format = "%Y-%m-%d",
   out
 }
 
+# The record of a cast that truncated nothing.
+truncated_empty <- function() data.table(
+  column = character(), n = integer(), examples = character(), rows = list()
+)
+
 #' Cast a table's columns to a reference table's types
 #'
 #' Cast the columns of \code{y} to the types they have in the reference
 #' \code{x}. Every column is validated and converted before any is written, so a
 #' refusal leaves \code{y} exactly as it was.
 #'
-#' A truncation is reported, never silent: the columns, counts and examples are
+#' A truncation is reported, never silent: the columns, counts, examples and
+#' the row numbers of \code{y} truncated (list column \code{rows}) are
 #' recorded on \code{y} as \code{attr(y, "truncated")} (an empty table when
 #' nothing was truncated) and announced in one message of class
 #' \code{daffiz_message_truncation}.
@@ -326,13 +337,16 @@ cast_dt <- function(x, y, cols = intersect(names(x), names(y)),
   )
 
   truncated <- rbindlist(c(
-    list(data.table(column = character(), n = integer(), examples = character())),
+    list(truncated_empty()),
     lapply(cols, function(nm) {
       t <- attr(values[[nm]], "truncated")
       if (is.null(t)) {
         return(NULL)
       }
-      data.table(column = labels[[nm]], n = t$n, examples = paste(t$examples, collapse = ", "))
+      data.table(
+        column = labels[[nm]], n = t$n, examples = paste(t$examples, collapse = ", "),
+        rows = list(t$rows)
+      )
     })
   ))
 

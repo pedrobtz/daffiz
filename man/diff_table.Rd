@@ -74,8 +74,8 @@ measure, with \code{n_rows_x}, \code{n_rows_y}, \code{n_na_x}, \code{n_na_y},
 
 The attributes \code{mode}, \code{name_map} (each column's name in \code{x} and \code{y}),
 \code{dropped} (columns of \code{y} dropped in benchmark mode), \code{ignored} (columns
-not compared) and \code{truncated} (the casts that truncated) record what was
-done on the way.
+not compared) and \code{truncated} (the casts that truncated, with the rows
+of \code{y} each one touched) record what was done on the way.
 }
 \description{
 \code{x} is the benchmark: in the default \code{mode = "benchmark"} it is the source
@@ -116,10 +116,13 @@ number or a timestamp to a whole day -- is made by default, because the
 benchmark's types are taken as the truth: storage such as Spark or Delta
 turns a locally built double into an integer, and the comparison has to
 follow it. Each truncation is announced in a message and recorded in
-\code{attr(, "truncated")}: per column, the count and up to three examples, not
-the rows. A truncated key column can pair rows that differ (\code{1.5} in \code{y}
-becomes \code{1} and aligns with \code{x}'s \code{1}), so read the message when it names
-a key. Set \code{truncate = FALSE} to refuse such casts instead.
+\code{attr(, "truncated")}: per column, the count, up to three examples, and
+in the list column \code{rows} the row numbers of \code{y} that were truncated,
+which are the \code{row_id_y} of the result. A truncated key column can pair
+rows that differ (\code{1.5} in \code{y} becomes \code{1} and aligns with \code{x}'s \code{1}), so
+read the message when it names a key, and find the rows with
+\code{d[row_id_y \%in\% attr(d, "truncated")$rows[[1]]]}. Set \code{truncate = FALSE}
+to refuse such casts instead.
 }
 
 \section{Measures and identity}{

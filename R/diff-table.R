@@ -36,10 +36,13 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' benchmark's types are taken as the truth: storage such as Spark or Delta
 #' turns a locally built double into an integer, and the comparison has to
 #' follow it. Each truncation is announced in a message and recorded in
-#' `attr(, "truncated")`: per column, the count and up to three examples, not
-#' the rows. A truncated key column can pair rows that differ (`1.5` in `y`
-#' becomes `1` and aligns with `x`'s `1`), so read the message when it names
-#' a key. Set `truncate = FALSE` to refuse such casts instead.
+#' `attr(, "truncated")`: per column, the count, up to three examples, and
+#' in the list column `rows` the row numbers of `y` that were truncated,
+#' which are the `row_id_y` of the result. A truncated key column can pair
+#' rows that differ (`1.5` in `y` becomes `1` and aligns with `x`'s `1`), so
+#' read the message when it names a key, and find the rows with
+#' `d[row_id_y %in% attr(d, "truncated")$rows[[1]]]`. Set `truncate = FALSE`
+#' to refuse such casts instead.
 #'
 #' @section Measures and identity:
 #' The measures are the numeric columns compared value by value; `measures`
@@ -151,8 +154,8 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #'
 #'   The attributes `mode`, `name_map` (each column's name in `x` and `y`),
 #'   `dropped` (columns of `y` dropped in benchmark mode), `ignored` (columns
-#'   not compared) and `truncated` (the casts that truncated) record what was
-#'   done on the way.
+#'   not compared) and `truncated` (the casts that truncated, with the rows
+#'   of `y` each one touched) record what was done on the way.
 #' @export
 #' @examples
 #' benchmark <- data.frame(id = 1:4, amount = c(10, 20, 30, 40))
@@ -320,7 +323,7 @@ diff_table <- function(x, y,
   }
   truncated <- attr(yy, "truncated")
   if (is.null(truncated)) {
-    truncated <- data.table(column = character(), n = integer(), examples = character())
+    truncated <- truncated_empty()
   }
 
   # 5. Roles --------------------------------------------------------------------

@@ -84,8 +84,8 @@ Reading the result:
 - **Column names are normalized** in both tables: upper case, with other
   characters turned into `_`. That is why `id` and `ID` pair up.
 - **`units` was cast to the benchmark's integer type.** Its `10.4` was
-  truncated to `10`, which is announced in a message and recorded in
-  `attr(d, "truncated")`. Pass `truncate = FALSE` to refuse such casts
+  truncated to `10`, which is announced in a message and recorded, with the
+  rows it touched, in `attr(d, "truncated")`. Pass `truncate = FALSE` to refuse such casts
   instead.
 
 `diff_summary()` condenses the result per measure:
