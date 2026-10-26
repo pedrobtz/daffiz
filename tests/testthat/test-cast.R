@@ -290,7 +290,13 @@ test_that("a truncating cast records what it dropped", {
   expect_identical(rec$n, 3L)
   # One example per distinct value.
   expect_identical(rec$examples, c("1.7 -> 1", "-3.7 -> -3"))
+  # Every truncated position, repeats included, not only the examples.
+  expect_identical(rec$rows, c(1L, 3L, 4L))
   expect_null(attr(cast_value(c(1, 2), "integer", "N"), "truncated"))
+})
+
+test_that("text truncated in two hops keeps its positions", {
+  expect_identical(attr(cast_value(c("1", "2.5", "3.5"), "integer", "N"), "truncated")$rows, 2:3)
 })
 
 test_that("a number becomes the Date it prints as, never a fractional one", {
@@ -444,12 +450,14 @@ test_that("cast_dt reports truncation once, as a message with a record", {
   expect_identical(rec$column, c("a", "b"))
   expect_identical(rec$n, c(1L, 2L))
   expect_identical(rec$examples, c("1.7 -> 1", "3.2 -> 3"))
+  expect_identical(rec$rows, list(1L, 1:2))
 })
 
 test_that("cast_dt is quiet, with an empty record, when nothing was truncated", {
   y <- data.table(a = c(1, 2))
   expect_no_message(cast_dt(data.table(a = 1L), y))
   expect_identical(nrow(attr(y, "truncated")), 0L)
+  expect_named(attr(y, "truncated"), c("column", "n", "examples", "rows"))
 })
 
 test_that("cast_dt with truncate = FALSE refuses before writing anything", {

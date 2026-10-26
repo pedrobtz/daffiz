@@ -115,6 +115,40 @@ test_that("truncation in benchmark mode is announced and recorded", {
   )
 })
 
+test_that("the record names every truncated row, as row_id_y", {
+  # More distinct values than the message has examples for.
+  x <- data.table(id = c("a", "b", "c", "d", "e"), n = 1:5)
+  y <- data.table(id = c("e", "d", "c", "b", "a"), n = c(5.1, 4, 3.3, 2.2, 1.9))
+  d <- suppressMessages(diff_table(x, y, measures = "numeric+integer"))
+  rec <- attr(d, "truncated")
+  expect_identical(rec$rows, list(c(1L, 3L, 4L, 5L)))
+  expect_setequal(d[row_id_y %in% rec$rows[[1]], ID], c("e", "c", "b", "a"))
+})
+
+test_that("a truncated key's rows can be found among the matches", {
+  d <- suppressMessages(diff_table(data.frame(id = 1:2, v = 1), data.frame(id = c(1.5, 2), v = 1)))
+  expect_true(all(d$status == "same"))
+  rec <- attr(d, "truncated")
+  expect_identical(rec$column, "id")
+  expect_identical(d[row_id_y %in% rec$rows[[1]], ID], 1L)
+})
+
+test_that("the record keeps its rows under duplicates = \"aggregate\"", {
+  d <- suppressMessages(diff_table(
+    data.frame(id = c(1L, 1L), v = c(1, 2)),
+    data.frame(id = c(1.2, 1), v = c(1, 2)),
+    duplicates = "aggregate"
+  ))
+  expect_identical(attr(d, "shape"), "groups")
+  expect_identical(attr(d, "truncated")$rows, list(1L))
+})
+
+test_that("a comparison that truncated nothing has an empty record", {
+  rec <- attr(diff_table(data.frame(id = 1L, v = 1), data.frame(id = 1L, v = 1)), "truncated")
+  expect_identical(nrow(rec), 0L)
+  expect_named(rec, c("column", "n", "examples", "rows"))
+})
+
 test_that("a cast error names the column in the tested table's spelling", {
   expect_error(
     diff_table(data.table(id = 1, `unit price` = 1), data.table(id = 1, Unit.Price = "x")),
