@@ -139,7 +139,7 @@
 <li>
 <strong>Column names are normalized</strong> in both tables: upper case, with other characters turned into <code>_</code>. That is why <code>id</code> and <code>ID</code> pair up.</li>
 <li>
-<strong><code>units</code> was cast to the benchmark’s integer type.</strong> Its <code>10.4</code> was truncated to <code>10</code>, which is announced in a message and recorded in <code>attr(d, "truncated")</code>. Pass <code>truncate = FALSE</code> to refuse such casts instead.</li>
+<strong><code>units</code> was cast to the benchmark’s integer type.</strong> Its <code>10.4</code> was truncated to <code>10</code>, which is announced in a message and recorded, with the rows it touched, in <code>attr(d, "truncated")</code>. Pass <code>truncate = FALSE</code> to refuse such casts instead.</li>
 </ul>
 <p><code><a href="reference/diff_summary.html">diff_summary()</a></code> condenses the result per measure:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">

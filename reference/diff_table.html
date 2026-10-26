@@ -158,8 +158,8 @@ measure, with <code>n_rows_x</code>, <code>n_rows_y</code>, <code>n_na_x</code>,
 <code>changed</code>.</p></li>
 </ul><p>The attributes <code>mode</code>, <code>name_map</code> (each column's name in <code>x</code> and <code>y</code>),
 <code>dropped</code> (columns of <code>y</code> dropped in benchmark mode), <code>ignored</code> (columns
-not compared) and <code>truncated</code> (the casts that truncated) record what was
-done on the way.</p>
+not compared) and <code>truncated</code> (the casts that truncated, with the rows
+of <code>y</code> each one touched) record what was done on the way.</p>
     </div>
     <div id="modes">
     <h2>Modes</h2>
@@ -194,10 +194,13 @@ number or a timestamp to a whole day – is made by default, because the
 benchmark's types are taken as the truth: storage such as Spark or Delta
 turns a locally built double into an integer, and the comparison has to
 follow it. Each truncation is announced in a message and recorded in
-<code>attr(, "truncated")</code>: per column, the count and up to three examples, not
-the rows. A truncated key column can pair rows that differ (<code>1.5</code> in <code>y</code>
-becomes <code>1</code> and aligns with <code>x</code>'s <code>1</code>), so read the message when it names
-a key. Set <code>truncate = FALSE</code> to refuse such casts instead.</p>
+<code>attr(, "truncated")</code>: per column, the count, up to three examples, and
+in the list column <code>rows</code> the row numbers of <code>y</code> that were truncated,
+which are the <code>row_id_y</code> of the result. A truncated key column can pair
+rows that differ (<code>1.5</code> in <code>y</code> becomes <code>1</code> and aligns with <code>x</code>'s <code>1</code>), so
+read the message when it names a key, and find the rows with
+<code>d[row_id_y %in% attr(d, "truncated")$rows[[1]]]</code>. Set <code>truncate = FALSE</code>
+to refuse such casts instead.</p>
     </div>
     <div id="measures-and-identity">
     <h2>Measures and identity</h2>
