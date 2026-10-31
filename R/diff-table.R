@@ -86,8 +86,10 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' * `"error"` refuses.
 #'
 #' @section Values:
-#' A value is `same` when both are equal, or when both are finite and differ
-#' by at most `tolerance`. Two missing values are the same; with
+#' A value is `same` when both are equal, or when both are finite and their
+#' difference is within `tolerance` or within `rel_tol` relative to the larger
+#' of the two: `abs_diff <= tolerance` or `rel_diff <= rel_tol`. Both
+#' tolerances default to 0, so by default only equal values are the same. Two missing values are the same; with
 #' `nan_is_na = TRUE` NaN and NA are the same missing value, in measures and in
 #' key columns alike.
 #'
@@ -125,6 +127,9 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #'   `"numeric+integer"` the integer columns too. Or column names, which must
 #'   be numeric or integer.
 #' @param tolerance The largest absolute difference still counted as `same`.
+#' @param rel_tol The largest relative difference still counted as `same`,
+#'   relative to the larger magnitude of the two values. A value is `same`
+#'   when it is within either tolerance.
 #' @param duplicates `"disambiguate"` (the default), `"aggregate"` or
 #'   `"error"`. See Duplicate keys.
 #' @param cast Whether to cast `y` to `x`'s types. Defaults to `TRUE` in
@@ -143,7 +148,10 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #'   * `"cells"`, the usual one: one row per row and measure, with `key_seq`
 #'     (only when duplicates were numbered), `metric`, `row_id_x`, `row_id_y`
 #'     (the source rows, `NA` on the side the row is missing from),
-#'     `value_x`, `value_y`, `diff` (`value_y - value_x`) and `status`.
+#'     `value_x`, `value_y`, `diff` (`value_y - value_x`), `abs_diff`
+#'     (`abs(diff)`), `rel_diff` (`abs_diff / pmax(abs(value_x),
+#'     abs(value_y))`, 0 when both are 0, `NA` unless both are finite) and
+#'     `status`.
 #'   * `"groups"`, with `duplicates = "aggregate"`: one row per key and
 #'     measure, with `n_rows_x`, `n_rows_y`, `n_na_x`, `n_na_y`,
 #'     `value_key_x`, `value_key_y` (the exact multiset of values) and
@@ -152,7 +160,7 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #'     (when present), `row_id_x`, `row_id_y` and `status`, which is never
 #'     `changed`.
 #'
-#'   The attributes `mode`, `name_map` (each column's name in `x` and `y`),
+#'   The attributes `mode`, `tolerance` (`abs` and `rel`), `name_map` (each column's name in `x` and `y`),
 #'   `dropped` (columns of `y` dropped in benchmark mode), `ignored` (columns
 #'   not compared) and `truncated` (the casts that truncated, with the rows
 #'   of `y` each one touched) record what was done on the way.
@@ -186,6 +194,7 @@ diff_table <- function(x, y,
                        row_key = c("none", "position", "sorted"),
                        measures = "numeric",
                        tolerance = 0,
+                       rel_tol = 0,
                        duplicates = c("disambiguate", "aggregate", "error"),
                        cast = mode == "benchmark",
                        truncate = TRUE,
@@ -198,9 +207,11 @@ diff_table <- function(x, y,
   mode <- match.arg(mode)
   row_key <- match.arg(row_key)
   duplicates <- match.arg(duplicates)
-  if (!is.numeric(tolerance) || length(tolerance) != 1L || !is.finite(tolerance) ||
-    tolerance < 0) {
-    daffiz_abort("daffiz_error_input", "`tolerance` must be a single finite number >= 0")
+  for (arg in c("tolerance", "rel_tol")) {
+    v <- get(arg)
+    if (!is.numeric(v) || length(v) != 1L || !is.finite(v) || v < 0) {
+      daffiz_abort("daffiz_error_input", sprintf("`%s` must be a single finite number >= 0", arg))
+    }
   }
   for (arg in c("truncate", "nan_is_na")) {
     if (!is_flag(get(arg))) {
@@ -221,10 +232,10 @@ diff_table <- function(x, y,
   }
   # The multiset of a key's values is compared exactly; a tolerance would
   # silently do nothing, so it is refused instead.
-  if (duplicates == "aggregate" && tolerance > 0) {
+  if (duplicates == "aggregate" && (tolerance > 0 || rel_tol > 0)) {
     daffiz_abort(
       "daffiz_error_input",
-      "duplicates = \"aggregate\" compares values exactly; `tolerance` must be 0"
+      "duplicates = \"aggregate\" compares values exactly; `tolerance` and `rel_tol` must be 0"
     )
   }
 
@@ -523,6 +534,15 @@ diff_table <- function(x, y,
       vx <- out$value_x
       vy <- out$value_y
       out[, diff := value_y - value_x]
+      # rel_diff is scaled before subtracting, so two finite values whose
+      # difference overflows (-1e308 and 1e308) still get their true relative
+      # difference, 2. It is defined only where both values are finite.
+      finite <- is_finite_pair(vx, vy)
+      m <- pmax(abs(vx), abs(vy))
+      rel <- rep(NA_real_, length(vx))
+      rel[finite] <- ifelse(m[finite] == 0, 0, abs(vy[finite] / m[finite] - vx[finite] / m[finite]))
+      out[, abs_diff := abs(diff)]
+      out[, rel_diff := rel]
       # Two missing values are the same, and with nan_is_na a NaN is just a
       # missing value. Equality comes before the tolerance: Inf - Inf is NaN,
       # so a tolerance test alone would call two identical infinities a change.
@@ -531,8 +551,11 @@ diff_table <- function(x, y,
       } else {
         (is.nan(vx) & is.nan(vy)) | (is.na(vx) & !is.nan(vx) & is.na(vy) & !is.nan(vy))
       }
+      # The tolerances apply to finite pairs only: rel_tol times an infinite
+      # magnitude would otherwise call 1 and Inf the same.
       both_missing |
-        (!is.na(vx) & !is.na(vy) & (vx == vy | abs(vy - vx) <= tolerance))
+        (!is.na(vx) & !is.na(vy) & vx == vy) |
+        (finite & (out$abs_diff <= tolerance | rel <= rel_tol))
     },
     groups = {
       same_n <- out$n_rows_x == out$n_rows_y
@@ -553,13 +576,14 @@ diff_table <- function(x, y,
   # 13. Result ------------------------------------------------------------------
   setcolorder(out, intersect(c(
     ids, "key_seq", "metric",
-    "row_id_x", "row_id_y", "value_x", "value_y", "diff",
+    "row_id_x", "row_id_y", "value_x", "value_y", "diff", "abs_diff", "rel_diff",
     "n_rows_x", "n_rows_y", "n_na_x", "n_na_y", "value_key_x", "value_key_y",
     "status"
   ), names(out)))
   setkeyv(out, on)
   setattr(out, "shape", shape)
   setattr(out, "mode", mode)
+  setattr(out, "tolerance", list(abs = tolerance, rel = rel_tol))
   setattr(out, "name_map", data.table(
     column = map_x$column,
     name_x = map_x$name,

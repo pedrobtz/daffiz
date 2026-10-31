@@ -111,6 +111,7 @@ diff_report <- function(d, x_name = "x", y_name = "y", top_k = 3L, sample_k = 5L
     )
     if (shape == "cells") {
       set(by_measure, j = "max_abs_diff", value = s$max_abs_diff)
+      set(by_measure, j = "max_rel_diff", value = s$max_rel_diff)
       changes <- top_changes(d, ids, top_k)
       distinct <- changes$distinct
       set(by_measure, j = "n_distinct_changes",
@@ -136,6 +137,7 @@ diff_report <- function(d, x_name = "x", y_name = "y", top_k = 3L, sample_k = 5L
       x_name = x_name,
       y_name = y_name,
       mode = attr(d, "mode"),
+      tolerance = attr(d, "tolerance"),
       shape = shape,
       unit = if (shape == "groups") "keys" else "rows",
       identity = label_of(ids),
@@ -185,12 +187,18 @@ format.daffiz_report <- function(x, unicode = l10n_info()[["UTF-8"]], ...) {
     paste0("Identity: ", fmt_names(x$identity)),
     paste0(
       "Mode:     ", x$mode,
-      if (x$mode == "benchmark") sprintf(" (%s is the benchmark)", x$x_name)
+      if (x$mode == "benchmark") sprintf(": %s is tested against %s", x$y_name, x$x_name)
     ),
     if (x$paired && x$rows$n_x + x$rows$n_y > 0) {
       "Repeated keys were paired in arrival order (key_seq)."
     },
-    if (x$shape == "groups") "Repeated keys: each key's values are compared as a multiset."
+    if (x$shape == "groups") "Repeated keys: each key's values are compared as a multiset.",
+    if (!is.null(x$tolerance) && (x$tolerance$abs > 0 || x$tolerance$rel > 0)) {
+      sprintf(
+        "Tolerance: %s absolute, %s relative.",
+        format(x$tolerance$abs, digits = 7L), format(x$tolerance$rel, digits = 7L)
+      )
+    }
   )
 
   columns <- c(
@@ -350,12 +358,11 @@ measure_lines <- function(x, g) {
   }
   cells <- x$shape == "cells"
   show_changes <- cells && x$top_k > 0L
-  header <- c("Measure", "Match rate", if (cells) "Max |diff|", if (show_changes) "Top changes")
+  header <- c("Measure", "Match rate", if (cells) c("Max |diff|", "Max rel diff"), if (show_changes) "Top changes")
   rows <- lapply(seq_len(nrow(changed)), function(i) {
     row <- list(changed$measure[i], fmt_pct(changed$match_rate[i]))
     if (cells) {
-      v <- changed$max_abs_diff[i]
-      row <- c(row, if (is.na(v)) "-" else format(v, digits = 4L))
+      row <- c(row, fmt_size(changed$max_abs_diff[i]), fmt_size(changed$max_rel_diff[i]))
     }
     if (show_changes) {
       ch <- x$changes[measure == changed$measure[i]]
@@ -370,7 +377,7 @@ measure_lines <- function(x, g) {
     row
   })
   c(
-    draw_table(header, rows, c("left", "right", if (cells) "right", if (show_changes) "left"), g),
+    draw_table(header, rows, c("left", "right", if (cells) c("right", "right"), if (show_changes) "left"), g),
     if (rest) {
       sprintf(
         "%s %s on every row found in both tables.",
@@ -455,6 +462,8 @@ fmt_cell <- function(v) {
   if (is.double(v) && is.null(oldClass(v))) return(format(v, digits = 7L))
   as.character(format(v))
 }
+
+fmt_size <- function(v) if (is.na(v)) "-" else format(v, digits = 4L)
 
 fmt_values <- function(v) vapply(seq_along(v), function(i) fmt_cell(v[i]), "")
 

@@ -13,8 +13,8 @@ diff_summary(d)
 A \code{data.table} with one row per measure, in the benchmark's column
 order (a single row when there are no measures): \code{metric}, \code{n},
 \code{n_same}, \code{n_changed}, \code{n_only_x}, \code{n_only_y}, and for the \code{"cells"}
-shape \code{max_abs_diff}, \code{mean_abs_diff} and \code{rmse} (\code{NA} for a measure
-with no finite pair).
+shape \code{max_abs_diff}, \code{mean_abs_diff}, \code{rmse} and \code{max_rel_diff} (\code{NA}
+for a measure with no finite pair).
 }
 \description{
 Counts of each status for every measure of a \code{\link[=diff_table]{diff_table()}} result, and,

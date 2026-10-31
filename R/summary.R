@@ -16,8 +16,8 @@
 #' @return A `data.table` with one row per measure, in the benchmark's column
 #'   order (a single row when there are no measures): `metric`, `n`,
 #'   `n_same`, `n_changed`, `n_only_x`, `n_only_y`, and for the `"cells"`
-#'   shape `max_abs_diff`, `mean_abs_diff` and `rmse` (`NA` for a measure
-#'   with no finite pair).
+#'   shape `max_abs_diff`, `mean_abs_diff`, `rmse` and `max_rel_diff` (`NA`
+#'   for a measure with no finite pair).
 #' @export
 #' @examples
 #' x <- data.frame(id = 1:3, amount = c(10, 20, 30), rate = c(1, 1, 1))
@@ -40,11 +40,13 @@ diff_summary <- function(d) {
 
   if (shape == "cells") {
     sizes <- d[, {
-      z <- (value_y - value_x)[is_finite_pair(value_x, value_y)]
+      finite <- is_finite_pair(value_x, value_y)
+      z <- (value_y - value_x)[finite]
       .(
         max_abs_diff = if (length(z)) max(abs(z)) else NA_real_,
         mean_abs_diff = if (length(z)) mean(abs(z)) else NA_real_,
-        rmse = scaled_rmse(z)
+        rmse = scaled_rmse(z),
+        max_rel_diff = if (length(z)) max(rel_diff[finite]) else NA_real_
       )
     }, by = metric]
     counts <- counts[sizes, on = "metric"]

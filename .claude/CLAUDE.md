@@ -122,6 +122,10 @@ Each is covered by a test.
   value says nothing about whether the row was there.
 - **Equality before tolerance.** `Inf - Inf` is NaN, so a tolerance test alone
   calls two identical infinities a change.
+- **The tolerances apply to finite pairs only.** `rel_tol` times an infinite
+  magnitude is infinite, so without the guard 1 and `Inf` would be `same`.
+  `rel_diff` is relative to the larger magnitude (symmetric in equal mode),
+  scaled before subtracting so `-1e308` vs `1e308` gives 2, not `Inf`.
 - **`nan_is_na` must act in three places**: value cells, the `%a` encoding of
   `"aggregate"`, and double key columns. data.table joins and groups NA and
   NaN as different keys (verified), so skipping the keys splits a row into

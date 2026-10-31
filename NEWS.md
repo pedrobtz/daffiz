@@ -33,6 +33,12 @@ First release.
 * `nan_is_na = TRUE` treats NaN as NA, in values and in key columns alike.
 * A comparison in which no row aligns is an error, not a report of two
   unrelated tables.
+* `rel_tol` adds a relative tolerance to the absolute `tolerance`: a value
+  is `same` when it is within either. The relative difference is taken
+  against the larger magnitude of the two values, so it is symmetric, and
+  both tolerances apply to finite pairs only. The result carries
+  `abs_diff` and `rel_diff` beside `diff`, `diff_summary()` reports
+  `max_rel_diff`, and the tolerances are recorded in `attr(, "tolerance")`.
 * `diff_report()` draws a bounded text report of a comparison: the columns
   compared, a picture of how the rows of the two tables align, and per
   measure its match rate and most frequent changes, each with an example

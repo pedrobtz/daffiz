@@ -12,6 +12,7 @@ diff_table(
   row_key = c("none", "position", "sorted"),
   measures = "numeric",
   tolerance = 0,
+  rel_tol = 0,
   duplicates = c("disambiguate", "aggregate", "error"),
   cast = mode == "benchmark",
   truncate = TRUE,
@@ -38,6 +39,10 @@ be numeric or integer.}
 
 \item{tolerance}{The largest absolute difference still counted as \code{same}.}
 
+\item{rel_tol}{The largest relative difference still counted as \code{same},
+relative to the larger magnitude of the two values. A value is \code{same}
+when it is within either tolerance.}
+
 \item{duplicates}{\code{"disambiguate"} (the default), \code{"aggregate"} or
 \code{"error"}. See Duplicate keys.}
 
@@ -62,7 +67,9 @@ A \code{data.table} keyed by the identity columns (and \code{key_seq},
 \item \code{"cells"}, the usual one: one row per row and measure, with \code{key_seq}
 (only when duplicates were numbered), \code{metric}, \code{row_id_x}, \code{row_id_y}
 (the source rows, \code{NA} on the side the row is missing from),
-\code{value_x}, \code{value_y}, \code{diff} (\code{value_y - value_x}) and \code{status}.
+\code{value_x}, \code{value_y}, \code{diff} (\code{value_y - value_x}), \code{abs_diff}
+(\code{abs(diff)}), \code{rel_diff} (\code{abs_diff / pmax(abs(value_x), abs(value_y))}, 0 when both are 0, \code{NA} unless both are finite) and
+\code{status}.
 \item \code{"groups"}, with \code{duplicates = "aggregate"}: one row per key and
 measure, with \code{n_rows_x}, \code{n_rows_y}, \code{n_na_x}, \code{n_na_y},
 \code{value_key_x}, \code{value_key_y} (the exact multiset of values) and
@@ -72,7 +79,7 @@ measure, with \code{n_rows_x}, \code{n_rows_y}, \code{n_na_x}, \code{n_na_y},
 \code{changed}.
 }
 
-The attributes \code{mode}, \code{name_map} (each column's name in \code{x} and \code{y}),
+The attributes \code{mode}, \code{tolerance} (\code{abs} and \code{rel}), \code{name_map} (each column's name in \code{x} and \code{y}),
 \code{dropped} (columns of \code{y} dropped in benchmark mode), \code{ignored} (columns
 not compared) and \code{truncated} (the casts that truncated, with the rows
 of \code{y} each one touched) record what was done on the way.
@@ -178,8 +185,10 @@ instead, exactly (\code{tolerance} must be 0).
 
 \section{Values}{
 
-A value is \code{same} when both are equal, or when both are finite and differ
-by at most \code{tolerance}. Two missing values are the same; with
+A value is \code{same} when both are equal, or when both are finite and their
+difference is within \code{tolerance} or within \code{rel_tol} relative to the larger
+of the two: \code{abs_diff <= tolerance} or \code{rel_diff <= rel_tol}. Both
+tolerances default to 0, so by default only equal values are the same. Two missing values are the same; with
 \code{nan_is_na = TRUE} NaN and NA are the same missing value, in measures and in
 key columns alike.
 }
