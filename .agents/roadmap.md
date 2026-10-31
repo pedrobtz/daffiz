@@ -61,9 +61,9 @@ stored snapshots or settings is gone for now.
 | Feature | Old code | Re-add on the core | Pri |
 |---|---|---|---|
 | `expect_dt_equal()`, with bounded column/row/cell failure text | `R/expectations.R` | Returns in 0.1.0 as `expect_table_equal()`, with simpler failure text | H |
-| Difference map: `plot_data()`, `plot_diff()`, `plot()`. Rows in source order, contiguous binning, Okabe-Ito colours, ASCII tile marks | `R/plot.R` | Build from `row_id_x`, `metric` and `status`. Keep the lessons listed below | L |
+| Difference map: `plot_data()`, `plot_diff()`, `plot()`. Rows in source order, contiguous binning, Okabe-Ito colours, ASCII tile marks | `R/plot.R` | Superseded by `diff_report()`, whose row diagram and per-measure table answer the same question (where do the tables differ, and how much) in text, with no graphics device, colour or ggplot dependency. Do not re-add unless asked; the code stays at `draft-0.1.0:R/plot.R` | — |
 
-Lessons from the draft's plot to keep if it returns:
+Lessons from the draft's plot, should it ever return:
 
 - Never rank the rows; source order is what makes a band of failures visible.
 - Bin contiguous rows rather than dropping any.
@@ -103,4 +103,4 @@ load-bearing details in `.claude/CLAUDE.md`, not copied as is.
 | Vignette `comparing-tables.Rmd` | Dropped in Phase 1; rewrite once the API settles after 0.1.0 (M) |
 | pkgdown reference index and site checks (`review.md` P1 #7) | Revisit with the vignette (L) |
 | `benchmarks/` | These measure the draft's pipeline. Keep the harness and re-run it against the core after 0.1.0 |
-| Open items in `review.md` against the draft | NA/NaN → now an option (`nan_is_na`, default `TRUE`), so the review's "always different" is available as `FALSE`. Trace-column collisions → solved by column-name normalization. Unsupported identity shapes → covered by `CAST_TYPES`. Pairing opt-in → dropped (see above). Plot accessibility claim → only relevant if the plot returns |
+| Open items in `review.md` against the draft | NA/NaN → now an option (`nan_is_na`, default `TRUE`), so the review's "always different" is available as `FALSE`. Trace-column collisions → solved by column-name normalization. Unsupported identity shapes → covered by `CAST_TYPES`. Pairing opt-in → dropped (see above). Plot accessibility claim and plot measure order → moot, the plot is superseded by `diff_report()` |
