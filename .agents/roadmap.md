@@ -71,6 +71,31 @@ Lessons from the draft's plot to keep if it returns:
 - Guard `plot()`'s positional `y` argument.
 - Open a device in tests.
 
+## Ideas from diffly
+
+[diffly](https://github.com/Quantco/diffly) (Quantco, BSD-3) compares polars
+data frames on a primary key. `diff_report()` follows its summary; these are
+the other ideas worth taking from it, read from `diffly/comparison.py`,
+`_conditions.py`, `summary.py` and `metrics/`. Each is weighed against the
+load-bearing details in `.claude/CLAUDE.md`, not copied as is.
+
+| Idea | In diffly | On the daffiz core | Pri |
+|---|---|---|---|
+| Report in the failure text of `expect_table_equal()` | `diffly.testing.assert_frame_equal()` prints the summary on failure | Append `format(diff_report(d, "expected", "actual"), unicode = FALSE)` to the failure message, bounded by `top_k`/`sample_k` | H |
+| Relative tolerance per measure | `abs_tol`, `rel_tol`, each a number or a mapping per column; `is_close()`, so equality first and NaN equal to NaN | The `rel_tol` row above. diffly's defaults differ between comparing (`rel_tol = 1e-9`) and its test helper (polars' `1e-5`/`1e-8`); decide whether `expect_table_equal()` gets a looser default than `diff_table()`, which today is exact | H |
+| Change counts per measure as data | `change_counts(col, include_sample_primary_key=)`: (old, new, count, example key), most frequent first | Export what `top_changes()` in `R/report.R` computes, uncapped, as `diff_changes(d, measure = NULL)` | M |
+| Non-numeric measures | Every non-key column is compared: text, booleans, categoricals (as text when their levels differ), lists element by element, structs field by field | daffiz compares numeric measures only; other columns become the identity or are ignored. Text, logical and Date measures would need a typed value column per type in the melt (or one melt per type, `rbindlist()`-ed). Must be opt-in (`measures = "all"` or by name): with `by = NULL` those columns are the identity today. Change counts matter most for text | M |
+| Time tolerance | `abs_tol_temporal`, a `timedelta` for Date/Datetime pairs | Comes with non-numeric measures: a Date or POSIXct measure compared within a tolerance in days or seconds. Keys stay exact | L |
+| Row accessors with a column subset | `joined()`, `joined_equal(*cols)`, `joined_unequal(*cols)`, `left_only()`, `right_only()` | The `original_rows()` / `x_only()` / `y_only()` row above; a `measures` subset is `d[metric %in% m & status == "changed"]` grouped back to rows | H (as above) |
+| Extra change statistics | `ChangeMetric`s: mean, median, min, max, std, a quantile of `right - left`, the mean relative difference; selectable columns in the summary | Add the fixed few that are cheap (median, mean relative diff) to `diff_summary()` before any plug-in API. Filter on the source values, as the magnitudes do | L |
+| Per-table statistics | `DataMetric`s, e.g. the fraction of nulls on each side | `summarize_dt()` already profiles columns; show NA counts of `x` and `y` per measure in the report | L |
+| Hide sensitive values | `hidden_columns`: counts only, no values or example keys | A `hide = ` argument of `diff_report()`; refuse hiding a key column while `sample_k > 0` or examples are shown, as diffly does | L |
+| Structured export of the report | `Summary.to_json()` | The report is already a list; document its fields, and add `jsonlite` to Suggests only if asked | L |
+| Smaller report | `slim = True` drops the header; `show_perfect_column_matches` lists measures that match | Arguments of `format.daffiz_report()` | L |
+| Command line | `diffly left.parquet right.parquet --primary-key id` | An `exec/` script (Rapp) reading CSV, or parquet through `arrow` in Suggests | L |
+| Types checked apart from values | `equal(check_dtypes = False)` | Covered by the lossless-widening row above for `mode = "equal"`; benchmark mode casts | — |
+| Comparing without a key by sorting both tables | `equal()` sorts both frames by every column when there is no primary key | Covered: `row_key = "sorted"` | — |
+
 ## Documentation and infrastructure
 
 | Item | Status |
