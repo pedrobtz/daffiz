@@ -63,7 +63,13 @@ as peers instead.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">expect_table_equal</span><span class="op">(</span><span class="va">object</span>, <span class="va">expected</span>, <span class="va">...</span>, max_rows <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">expect_table_equal</span><span class="op">(</span></span>
+<span>  <span class="va">object</span>,</span>
+<span>  <span class="va">expected</span>,</span>
+<span>  <span class="va">...</span>,</span>
+<span>  rel_tol <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">.Machine</span><span class="op">$</span><span class="va">double.eps</span><span class="op">)</span>,</span>
+<span>  max_rows <span class="op">=</span> <span class="fl">10L</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -83,6 +89,12 @@ as peers instead.</p>
 <code>tolerance</code>, <code>duplicates</code> and so on.</p></dd>
 
 
+<dt id="arg-rel-tol">rel_tol<a class="anchor" aria-label="anchor" href="#arg-rel-tol"></a></dt>
+<dd><p>The largest relative difference still counted as <code>same</code>,
+as in <code><a href="diff_table.html">diff_table()</a></code>. With <code>duplicates = "aggregate"</code>, which compares
+exactly, it defaults to 0.</p></dd>
+
+
 <dt id="arg-max-rows">max_rows<a class="anchor" aria-label="anchor" href="#arg-max-rows"></a></dt>
 <dd><p>The most records that differ shown in a failure.</p></dd>
 
@@ -94,7 +106,13 @@ attached to the failed expectation, as its <code>"diff"</code> attribute.</p>
     </div>
     <div id="details">
     <h2>Details</h2>
-    <p>Duplicate keys fail the expectation rather than being paired: pairing rows
+    <p>Unlike <code><a href="diff_table.html">diff_table()</a></code>, which is exact by default, the expectation allows a
+relative difference of <code>sqrt(.Machine$double.eps)</code> (about <code>1.5e-8</code>), the
+default of testthat's <code>expect_equal()</code>: a value computed again rarely
+agrees with its stored copy to the last bit (<code>0.1 + 0.2</code> is not <code>0.3</code>), and
+a test should not fail on that. It is still far below any difference a
+person would call real. Pass <code>rel_tol = 0</code> for an exact comparison.</p>
+<p>Duplicate keys fail the expectation rather than being paired: pairing rows
 by arrival order is an assumption, and an assertion should not rest on one.
 The exception is a comparison with no measures, where the repeated rows are
 identical in every compared column and pairing them assumes nothing. Pass

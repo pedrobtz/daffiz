@@ -116,18 +116,18 @@
 <span><span class="co">#&gt;   Units: 1 (10.4 -&gt; 10)</span></span>
 <span><span class="va">d</span></span>
 <span><span class="co">#&gt; Key: &lt;ID, REGION, metric&gt;</span></span>
-<span><span class="co">#&gt;        ID REGION metric row_id_x row_id_y value_x value_y  diff  status</span></span>
-<span><span class="co">#&gt;     &lt;int&gt; &lt;char&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;  &lt;fctr&gt;</span></span>
-<span><span class="co">#&gt;  1:     1  north AMOUNT        1        1     100   100.0   0.0    same</span></span>
-<span><span class="co">#&gt;  2:     1  north  UNITS        1        1      10    10.0   0.0    same</span></span>
-<span><span class="co">#&gt;  3:     2  south AMOUNT        2        2     200   200.5   0.5 changed</span></span>
-<span><span class="co">#&gt;  4:     2  south  UNITS        2        2      20    20.0   0.0    same</span></span>
-<span><span class="co">#&gt;  5:     3   east AMOUNT        3        3     300   300.0   0.0    same</span></span>
-<span><span class="co">#&gt;  6:     3   east  UNITS        3        3      30    30.0   0.0    same</span></span>
-<span><span class="co">#&gt;  7:     4   west AMOUNT        4       NA     400      NA    NA  only_x</span></span>
-<span><span class="co">#&gt;  8:     4   west  UNITS        4       NA      40      NA    NA  only_x</span></span>
-<span><span class="co">#&gt;  9:     5  north AMOUNT       NA        4      NA   500.0    NA  only_y</span></span>
-<span><span class="co">#&gt; 10:     5  north  UNITS       NA        4      NA    50.0    NA  only_y</span></span></code></pre></div>
+<span><span class="co">#&gt;        ID REGION metric row_id_x row_id_y value_x value_y  diff abs_diff    rel_diff  status</span></span>
+<span><span class="co">#&gt;     &lt;int&gt; &lt;char&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;    &lt;num&gt;       &lt;num&gt;  &lt;fctr&gt;</span></span>
+<span><span class="co">#&gt;  1:     1  north AMOUNT        1        1     100   100.0   0.0      0.0 0.000000000    same</span></span>
+<span><span class="co">#&gt;  2:     1  north  UNITS        1        1      10    10.0   0.0      0.0 0.000000000    same</span></span>
+<span><span class="co">#&gt;  3:     2  south AMOUNT        2        2     200   200.5   0.5      0.5 0.002493766 changed</span></span>
+<span><span class="co">#&gt;  4:     2  south  UNITS        2        2      20    20.0   0.0      0.0 0.000000000    same</span></span>
+<span><span class="co">#&gt;  5:     3   east AMOUNT        3        3     300   300.0   0.0      0.0 0.000000000    same</span></span>
+<span><span class="co">#&gt;  6:     3   east  UNITS        3        3      30    30.0   0.0      0.0 0.000000000    same</span></span>
+<span><span class="co">#&gt;  7:     4   west AMOUNT        4       NA     400      NA    NA       NA          NA  only_x</span></span>
+<span><span class="co">#&gt;  8:     4   west  UNITS        4       NA      40      NA    NA       NA          NA  only_x</span></span>
+<span><span class="co">#&gt;  9:     5  north AMOUNT       NA        4      NA   500.0    NA       NA          NA  only_y</span></span>
+<span><span class="co">#&gt; 10:     5  north  UNITS       NA        4      NA    50.0    NA       NA          NA  only_y</span></span></code></pre></div>
 <p>Reading the result:</p>
 <ul>
 <li>
@@ -135,7 +135,7 @@
 <li>
 <strong><code>row_id_x</code> and <code>row_id_y</code></strong> are the row numbers in the two inputs.</li>
 <li>
-<strong><code>diff</code></strong> is <code>value_y - value_x</code>.</li>
+<strong><code>diff</code></strong> is <code>value_y - value_x</code>; <strong><code>abs_diff</code></strong> is its size, and <strong><code>rel_diff</code></strong> the size relative to the larger of the two values.</li>
 <li>
 <strong>Column names are normalized</strong> in both tables: upper case, with other characters turned into <code>_</code>. That is why <code>id</code> and <code>ID</code> pair up.</li>
 <li>
@@ -144,36 +144,105 @@
 <p><code><a href="reference/diff_summary.html">diff_summary()</a></code> condenses the result per measure:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_summary.html">diff_summary</a></span><span class="op">(</span><span class="va">d</span><span class="op">)</span></span>
-<span><span class="co">#&gt;    metric     n n_same n_changed n_only_x n_only_y max_abs_diff mean_abs_diff      rmse</span></span>
-<span><span class="co">#&gt;    &lt;char&gt; &lt;int&gt;  &lt;int&gt;     &lt;int&gt;    &lt;int&gt;    &lt;int&gt;        &lt;num&gt;         &lt;num&gt;     &lt;num&gt;</span></span>
-<span><span class="co">#&gt; 1: AMOUNT     5      2         1        1        1          0.5     0.1666667 0.2886751</span></span>
-<span><span class="co">#&gt; 2:  UNITS     5      3         0        1        1          0.0     0.0000000 0.0000000</span></span></code></pre></div>
+<span><span class="co">#&gt;    metric     n n_same n_changed n_only_x n_only_y max_abs_diff mean_abs_diff      rmse max_rel_diff</span></span>
+<span><span class="co">#&gt;    &lt;char&gt; &lt;int&gt;  &lt;int&gt;     &lt;int&gt;    &lt;int&gt;    &lt;int&gt;        &lt;num&gt;         &lt;num&gt;     &lt;num&gt;        &lt;num&gt;</span></span>
+<span><span class="co">#&gt; 1: AMOUNT     5      2         1        1        1          0.5     0.1666667 0.2886751  0.002493766</span></span>
+<span><span class="co">#&gt; 2:  UNITS     5      3         0        1        1          0.0     0.0000000 0.0000000  0.000000000</span></span></code></pre></div>
+<p><code><a href="reference/diff_report.html">diff_report()</a></code> draws the whole comparison as text: the columns compared, how the rows of the two tables align, and the most frequent changes of each measure, each with a key to look it up by:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/diff_report.html">diff_report</a></span><span class="op">(</span><span class="va">d</span>, x_name <span class="op">=</span> <span class="st">"benchmark"</span>, y_name <span class="op">=</span> <span class="st">"stored"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓</span></span>
+<span><span class="co">#&gt; ┃                                       daffiz report                                        ┃</span></span>
+<span><span class="co">#&gt; ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛</span></span>
+<span><span class="co">#&gt;    Identity: id, region</span></span>
+<span><span class="co">#&gt;    Mode:     benchmark: stored is tested against benchmark</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt;  Columns</span></span>
+<span><span class="co">#&gt;  ▔▔▔▔▔▔▔</span></span>
+<span><span class="co">#&gt;    Compared 4 columns: 2 keys, 2 measures.</span></span>
+<span><span class="co">#&gt;    Only in stored, dropped: loaded_at.</span></span>
+<span><span class="co">#&gt;    Truncated by the cast to benchmark's types:</span></span>
+<span><span class="co">#&gt;      Units: 1 value (10.4 -&gt; 10)</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt;  Rows</span></span>
+<span><span class="co">#&gt;  ▔▔▔▔</span></span>
+<span><span class="co">#&gt;    benchmark rows               stored rows</span></span>
+<span><span class="co">#&gt;          4         (no change)       4</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt;    ┏━┯━┯━┯━┯━┓</span></span>
+<span><span class="co">#&gt;    ┃-│-│-│-│-┃                1 only in benchmark (25.00%)</span></span>
+<span><span class="co">#&gt;    ┠─┼─┼─┼─┼─┨╌╌╌┏━┯━┯━┯━┯━┓╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮</span></span>
+<span><span class="co">#&gt;    ┃ │ │ │ │ ┃ = ┃ │ │ │ │ ┃  2 same              (66.67%)  │</span></span>
+<span><span class="co">#&gt;    ┠─┼─┼─┼─┼─┨╌╌╌┠─┼─┼─┼─┼─┨╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌├╴  3 joined</span></span>
+<span><span class="co">#&gt;    ┃ │ │ │ │ ┃ ≠ ┃ │ │ │ │ ┃  1 changed           (33.33%)  │</span></span>
+<span><span class="co">#&gt;    ┗━┷━┷━┷━┷━┛╌╌╌┠─┼─┼─┼─┼─┨╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯</span></span>
+<span><span class="co">#&gt;                  ┃+│+│+│+│+┃  1 only in stored    (25.00%)</span></span>
+<span><span class="co">#&gt;                  ┗━┷━┷━┷━┷━┛</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt;  Measures</span></span>
+<span><span class="co">#&gt;  ▔▔▔▔▔▔▔▔</span></span>
+<span><span class="co">#&gt;    ┌─────────┬────────────┬────────────┬──────────────┬──────────────────────────────────────┐</span></span>
+<span><span class="co">#&gt;    │ Measure │ Match rate │ Max |diff| │ Max rel diff │ Top changes                          │</span></span>
+<span><span class="co">#&gt;    ├─────────┼────────────┼────────────┼──────────────┼──────────────────────────────────────┤</span></span>
+<span><span class="co">#&gt;    │ amount  │     66.67% │        0.5 │     0.002494 │ 200 -&gt; 200.5 (1x, e.g. (2, "south")) │</span></span>
+<span><span class="co">#&gt;    └─────────┴────────────┴────────────┴──────────────┴──────────────────────────────────────┘</span></span>
+<span><span class="co">#&gt;    1 other measure matches on every row found in both tables.</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt;  Rows only in benchmark</span></span>
+<span><span class="co">#&gt;  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔</span></span>
+<span><span class="co">#&gt;    ┌────┬────────┐</span></span>
+<span><span class="co">#&gt;    │ id │ region │</span></span>
+<span><span class="co">#&gt;    ├────┼────────┤</span></span>
+<span><span class="co">#&gt;    │ 4  │ "west" │</span></span>
+<span><span class="co">#&gt;    └────┴────────┘</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt;  Rows only in stored</span></span>
+<span><span class="co">#&gt;  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔</span></span>
+<span><span class="co">#&gt;    ┌────┬─────────┐</span></span>
+<span><span class="co">#&gt;    │ id │ region  │</span></span>
+<span><span class="co">#&gt;    ├────┼─────────┤</span></span>
+<span><span class="co">#&gt;    │ 5  │ "north" │</span></span>
+<span><span class="co">#&gt;    └────┴─────────┘</span></span></code></pre></div>
+<p>A value is <code>same</code> when it is within <code>tolerance</code> (absolute) or <code>rel_tol</code> (relative to the larger magnitude). With <code>rel_tol = 0.01</code> the half unit on 200 passes, and only the rows missing from one table remain:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/diff_table.html">diff_table</a></span><span class="op">(</span><span class="va">benchmark</span>, <span class="va">stored</span>, by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id"</span>, <span class="st">"region"</span><span class="op">)</span>, measures <span class="op">=</span> <span class="st">"numeric+integer"</span>,</span>
+<span>           rel_tol <span class="op">=</span> <span class="fl">0.01</span><span class="op">)</span><span class="op">[</span><span class="va">status</span> <span class="op">!=</span> <span class="st">"same"</span><span class="op">]</span></span>
+<span><span class="co">#&gt; Dropped column(s) of `y` that the benchmark `x` does not have: loaded_at.</span></span>
+<span><span class="co">#&gt; Truncated 1 value(s) while casting to the reference types:</span></span>
+<span><span class="co">#&gt;   Units: 1 (10.4 -&gt; 10)</span></span>
+<span><span class="co">#&gt; Key: &lt;ID, REGION, metric&gt;</span></span>
+<span><span class="co">#&gt;       ID REGION metric row_id_x row_id_y value_x value_y  diff abs_diff rel_diff status</span></span>
+<span><span class="co">#&gt;    &lt;int&gt; &lt;char&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;    &lt;num&gt;    &lt;num&gt; &lt;fctr&gt;</span></span>
+<span><span class="co">#&gt; 1:     4   west AMOUNT        4       NA     400      NA    NA       NA       NA only_x</span></span>
+<span><span class="co">#&gt; 2:     4   west  UNITS        4       NA      40      NA    NA       NA       NA only_x</span></span>
+<span><span class="co">#&gt; 3:     5  north AMOUNT       NA        4      NA     500    NA       NA       NA only_y</span></span>
+<span><span class="co">#&gt; 4:     5  north  UNITS       NA        4      NA      50    NA       NA       NA only_y</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="comparing-two-tables-as-equals">Comparing two tables as equals<a class="anchor" aria-label="anchor" href="#comparing-two-tables-as-equals"></a>
 </h2>
 <p>In <code>mode = "equal"</code> nothing is cast or dropped, so the same two tables do not even compare:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_table.html">diff_table</a></span><span class="op">(</span><span class="va">benchmark</span>, <span class="va">stored</span>, mode <span class="op">=</span> <span class="st">"equal"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Error: mode = "equal" needs the same columns in both tables.</span></span>
 <span><span class="co">#&gt;   only in `x`: &lt;none&gt;</span></span>
 <span><span class="co">#&gt;   only in `y`: loaded_at</span></span></code></pre></div>
 <p>Row order never matters; rows are aligned on their identity:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_table.html">diff_table</a></span><span class="op">(</span><span class="va">benchmark</span>, <span class="va">benchmark</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span><span class="op">)</span>, <span class="op">]</span>, mode <span class="op">=</span> <span class="st">"equal"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Key: &lt;ID, REGION, UNITS, metric&gt;</span></span>
-<span><span class="co">#&gt;       ID REGION UNITS metric row_id_x row_id_y value_x value_y  diff status</span></span>
-<span><span class="co">#&gt;    &lt;int&gt; &lt;char&gt; &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt; &lt;fctr&gt;</span></span>
-<span><span class="co">#&gt; 1:     1  north    10 AMOUNT        1        2     100     100     0   same</span></span>
-<span><span class="co">#&gt; 2:     2  south    20 AMOUNT        2        3     200     200     0   same</span></span>
-<span><span class="co">#&gt; 3:     3   east    30 AMOUNT        3        4     300     300     0   same</span></span>
-<span><span class="co">#&gt; 4:     4   west    40 AMOUNT        4        1     400     400     0   same</span></span></code></pre></div>
+<span><span class="co">#&gt;       ID REGION UNITS metric row_id_x row_id_y value_x value_y  diff abs_diff rel_diff status</span></span>
+<span><span class="co">#&gt;    &lt;int&gt; &lt;char&gt; &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;    &lt;num&gt;    &lt;num&gt; &lt;fctr&gt;</span></span>
+<span><span class="co">#&gt; 1:     1  north    10 AMOUNT        1        2     100     100     0        0        0   same</span></span>
+<span><span class="co">#&gt; 2:     2  south    20 AMOUNT        2        3     200     200     0        0        0   same</span></span>
+<span><span class="co">#&gt; 3:     3   east    30 AMOUNT        3        4     300     300     0        0        0   same</span></span>
+<span><span class="co">#&gt; 4:     4   west    40 AMOUNT        4        1     400     400     0        0        0   same</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="do-they-have-the-same-rows">Do they have the same rows?<a class="anchor" aria-label="anchor" href="#do-they-have-the-same-rows"></a>
 </h2>
 <p>With no numeric measures, rows are compared as wholes. A repeated row counts once per copy:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/diff_table.html">diff_table</a></span><span class="op">(</span></span>
 <span>  <span class="va">benchmark</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id"</span>, <span class="st">"region"</span><span class="op">)</span><span class="op">]</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>ID <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3L</span>, <span class="fl">1L</span>, <span class="fl">2L</span>, <span class="fl">2L</span><span class="op">)</span>, REGION <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"east"</span>, <span class="st">"north"</span>, <span class="st">"south"</span>, <span class="st">"south"</span><span class="op">)</span><span class="op">)</span></span>
@@ -192,10 +261,11 @@
 <h2 id="in-tests">In tests<a class="anchor" aria-label="anchor" href="#in-tests"></a>
 </h2>
 <p><code><a href="reference/expect_table_equal.html">expect_table_equal()</a></code> is a testthat expectation built on <code><a href="reference/diff_table.html">diff_table()</a></code>. Its second argument, <code>expected</code>, is the benchmark:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">test_that</span><span class="op">(</span><span class="st">"the pipeline reproduces the reference output"</span>, <span class="op">{</span></span>
-<span>  <span class="fu"><a href="reference/expect_table_equal.html">expect_table_equal</a></span><span class="op">(</span><span class="fu">run_pipeline</span><span class="op">(</span><span class="op">)</span>, <span class="va">reference</span>, tolerance <span class="op">=</span> <span class="fl">1e-8</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="reference/expect_table_equal.html">expect_table_equal</a></span><span class="op">(</span><span class="fu">run_pipeline</span><span class="op">(</span><span class="op">)</span>, <span class="va">reference</span><span class="op">)</span></span>
 <span><span class="op">}</span><span class="op">)</span></span></code></pre></div>
+<p>Unlike <code><a href="reference/diff_table.html">diff_table()</a></code>, which is exact, it allows a relative difference of <code>sqrt(.Machine$double.eps)</code> (about <code>1.5e-8</code>) by default, as testthat’s <code>expect_equal()</code> does, so floating-point noise does not fail a test. Pass <code>rel_tol = 0</code> to compare exactly.</p>
 <p>A failure shows <code><a href="reference/diff_summary.html">diff_summary()</a></code> and the first records that differ. A key that repeats fails the expectation instead of being paired by arrival order, unless you pass <code>duplicates = "disambiguate"</code> or <code>duplicates = "aggregate"</code>.</p>
 </div>
 <div class="section level2">

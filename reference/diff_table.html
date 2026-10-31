@@ -71,6 +71,7 @@ both tables.</p>
 <span>  row_key <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"position"</span>, <span class="st">"sorted"</span><span class="op">)</span>,</span>
 <span>  measures <span class="op">=</span> <span class="st">"numeric"</span>,</span>
 <span>  tolerance <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  rel_tol <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  duplicates <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"disambiguate"</span>, <span class="st">"aggregate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
 <span>  cast <span class="op">=</span> <span class="va">mode</span> <span class="op">==</span> <span class="st">"benchmark"</span>,</span>
 <span>  truncate <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -115,6 +116,12 @@ be numeric or integer.</p></dd>
 <dd><p>The largest absolute difference still counted as <code>same</code>.</p></dd>
 
 
+<dt id="arg-rel-tol">rel_tol<a class="anchor" aria-label="anchor" href="#arg-rel-tol"></a></dt>
+<dd><p>The largest relative difference still counted as <code>same</code>,
+relative to the larger magnitude of the two values. A value is <code>same</code>
+when it is within either tolerance.</p></dd>
+
+
 <dt id="arg-duplicates">duplicates<a class="anchor" aria-label="anchor" href="#arg-duplicates"></a></dt>
 <dd><p><code>"disambiguate"</code> (the default), <code>"aggregate"</code> or
 <code>"error"</code>. See Duplicate keys.</p></dd>
@@ -148,7 +155,9 @@ refused rather than read as one.</p></dd>
 <code>row_key</code> added it. Its shape is in <code>attr(, "shape")</code>:</p><ul><li><p><code>"cells"</code>, the usual one: one row per row and measure, with <code>key_seq</code>
 (only when duplicates were numbered), <code>metric</code>, <code>row_id_x</code>, <code>row_id_y</code>
 (the source rows, <code>NA</code> on the side the row is missing from),
-<code>value_x</code>, <code>value_y</code>, <code>diff</code> (<code>value_y - value_x</code>) and <code>status</code>.</p></li>
+<code>value_x</code>, <code>value_y</code>, <code>diff</code> (<code>value_y - value_x</code>), <code>abs_diff</code>
+(<code>abs(diff)</code>), <code>rel_diff</code> (<code>abs_diff / pmax(abs(value_x), abs(value_y))</code>, 0 when both are 0, <code>NA</code> unless both are finite) and
+<code>status</code>.</p></li>
 <li><p><code>"groups"</code>, with <code>duplicates = "aggregate"</code>: one row per key and
 measure, with <code>n_rows_x</code>, <code>n_rows_y</code>, <code>n_na_x</code>, <code>n_na_y</code>,
 <code>value_key_x</code>, <code>value_key_y</code> (the exact multiset of values) and
@@ -156,7 +165,7 @@ measure, with <code>n_rows_x</code>, <code>n_rows_y</code>, <code>n_na_x</code>,
 <li><p><code>"rows"</code>, when there are no measures: one row per row, with <code>key_seq</code>
 (when present), <code>row_id_x</code>, <code>row_id_y</code> and <code>status</code>, which is never
 <code>changed</code>.</p></li>
-</ul><p>The attributes <code>mode</code>, <code>name_map</code> (each column's name in <code>x</code> and <code>y</code>),
+</ul><p>The attributes <code>mode</code>, <code>tolerance</code> (<code>abs</code> and <code>rel</code>), <code>name_map</code> (each column's name in <code>x</code> and <code>y</code>),
 <code>dropped</code> (columns of <code>y</code> dropped in benchmark mode), <code>ignored</code> (columns
 not compared) and <code>truncated</code> (the casts that truncated, with the rows
 of <code>y</code> each one touched) record what was done on the way.</p>
@@ -253,8 +262,10 @@ instead, exactly (<code>tolerance</code> must be 0).</p></li>
     <h2>Values</h2>
 
 
-<p>A value is <code>same</code> when both are equal, or when both are finite and differ
-by at most <code>tolerance</code>. Two missing values are the same; with
+<p>A value is <code>same</code> when both are equal, or when both are finite and their
+difference is within <code>tolerance</code> or within <code>rel_tol</code> relative to the larger
+of the two: <code>abs_diff &lt;= tolerance</code> or <code>rel_diff &lt;= rel_tol</code>. Both
+tolerances default to 0, so by default only equal values are the same. Two missing values are the same; with
 <code>nan_is_na = TRUE</code> NaN and NA are the same missing value, in measures and in
 key columns alike.</p>
     </div>
@@ -267,7 +278,7 @@ or tested for without matching its text, and inherits from
 <code>daffiz_error</code>, <code>daffiz_warning</code> or <code>daffiz_message</code>. An error means the
 question cannot be answered; a warning, that the answer may be wrong; a
 message reports an expected consequence of the settings.</p><ul><li><p><code>daffiz_error_input</code>: an argument is malformed.</p></li>
-<li><p><code>daffiz_error_columns</code>: columns missing, unknown, or left uncompared in
+<li><p><code>daffiz_error_columns</code>: columns missing, unknown, or not compared in
 equal mode; names that are empty or collide once normalized.</p></li>
 <li><p><code>daffiz_error_types</code>: a column of a type that cannot be compared, or
 types that differ where nothing is cast.</p></li>
@@ -296,30 +307,48 @@ measured, or a column <code>by</code> names too.</p></li>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Dropped column(s) of `y` that the benchmark `x` does not have: loaded_at.</span>
 <span class="r-in"><span><span class="va">d</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Key: &lt;ID, metric&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       ID metric row_id_x row_id_y value_x value_y  diff  status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;  &lt;fctr&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:     1 AMOUNT        1        1      10    10.0   0.0    same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:     2 AMOUNT        2        2      20    20.5   0.5 changed</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:     3 AMOUNT        3        3      30    30.0   0.0    same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4:     4 AMOUNT        4       NA      40      NA    NA  only_x</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5:     5 AMOUNT       NA        4      NA    50.0    NA  only_y</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       ID metric row_id_x row_id_y value_x value_y  diff abs_diff   rel_diff</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;    &lt;num&gt;      &lt;num&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:     1 AMOUNT        1        1      10    10.0   0.0      0.0 0.00000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:     2 AMOUNT        2        2      20    20.5   0.5      0.5 0.02439024</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:     3 AMOUNT        3        3      30    30.0   0.0      0.0 0.00000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:     4 AMOUNT        4       NA      40      NA    NA       NA         NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:     5 AMOUNT       NA        4      NA    50.0    NA       NA         NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     status</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;fctr&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2: changed</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:  only_x</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:  only_y</span>
 <span class="r-in"><span><span class="va">d</span><span class="op">[</span><span class="va">status</span> <span class="op">!=</span> <span class="st">"same"</span><span class="op">]</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Key: &lt;ID, metric&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       ID metric row_id_x row_id_y value_x value_y  diff  status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;  &lt;fctr&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:     2 AMOUNT        2        2      20    20.5   0.5 changed</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:     4 AMOUNT        4       NA      40      NA    NA  only_x</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:     5 AMOUNT       NA        4      NA    50.0    NA  only_y</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       ID metric row_id_x row_id_y value_x value_y  diff abs_diff   rel_diff</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;    &lt;num&gt;      &lt;num&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:     2 AMOUNT        2        2      20    20.5   0.5      0.5 0.02439024</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:     4 AMOUNT        4       NA      40      NA    NA       NA         NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:     5 AMOUNT       NA        4      NA    50.0    NA       NA         NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     status</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;fctr&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1: changed</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:  only_x</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:  only_y</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Equal mode: no casting, every column in both tables.</span></span></span>
 <span class="r-in"><span><span class="fu">diff_table</span><span class="op">(</span><span class="va">benchmark</span>, <span class="va">benchmark</span>, mode <span class="op">=</span> <span class="st">"equal"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Key: &lt;ID, metric&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       ID metric row_id_x row_id_y value_x value_y  diff status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt; &lt;fctr&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:     1 AMOUNT        1        1      10      10     0   same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:     2 AMOUNT        2        2      20      20     0   same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:     3 AMOUNT        3        3      30      30     0   same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4:     4 AMOUNT        4        4      40      40     0   same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       ID metric row_id_x row_id_y value_x value_y  diff abs_diff rel_diff</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;    &lt;num&gt;    &lt;num&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:     1 AMOUNT        1        1      10      10     0        0        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:     2 AMOUNT        2        2      20      20     0        0        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:     3 AMOUNT        3        3      30      30     0        0        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:     4 AMOUNT        4        4      40      40     0        0        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    status</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;fctr&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:   same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:   same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:   same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:   same</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># No key at all: align rows by sorting both tables by their values.</span></span></span>
 <span class="r-in"><span><span class="fu">diff_table</span><span class="op">(</span></span></span>
@@ -328,14 +357,22 @@ measured, or a column <code>by</code> names too.</p></li>
 <span class="r-in"><span>  row_key <span class="op">=</span> <span class="st">"sorted"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Key: &lt;row_number, metric&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    row_number metric row_id_x row_id_y value_x value_y  diff  status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;  &lt;fctr&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:          1      A        2        1       1       1     0    same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:          1      B        2        1      10      10     0    same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:          2      A        3        2       2       2     0    same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4:          2      B        3        2      20      25     5 changed</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5:          3      A        1        3       3       3     0    same</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6:          3      B        1        3      30      30     0    same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    row_number metric row_id_x row_id_y value_x value_y  diff abs_diff rel_diff</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         &lt;int&gt; &lt;char&gt;    &lt;int&gt;    &lt;int&gt;   &lt;num&gt;   &lt;num&gt; &lt;num&gt;    &lt;num&gt;    &lt;num&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:          1      A        2        1       1       1     0        0      0.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:          1      B        2        1      10      10     0        0      0.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:          2      A        3        2       2       2     0        0      0.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:          2      B        3        2      20      25     5        5      0.2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:          3      A        1        3       3       3     0        0      0.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6:          3      B        1        3      30      30     0        0      0.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     status</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;fctr&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4: changed</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    same</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    same</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># No measures: do the tables have the same rows?</span></span></span>
 <span class="r-in"><span><span class="fu">diff_table</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>k <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span><span class="op">)</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>k <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"b"</span>, <span class="st">"c"</span>, <span class="st">"a"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>

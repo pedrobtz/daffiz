@@ -68,9 +68,13 @@
 <code>nan_is_na = TRUE</code> treats NaN as NA, in values and in key columns alike.</li>
 <li>A comparison in which no row aligns is an error, not a report of two unrelated tables.</li>
 <li>
+<code>rel_tol</code> adds a relative tolerance to the absolute <code>tolerance</code>: a value is <code>same</code> when it is within either. The relative difference is taken against the larger magnitude of the two values, so it is symmetric, and both tolerances apply to finite pairs only. The result carries <code>abs_diff</code> and <code>rel_diff</code> beside <code>diff</code>, <code><a href="../reference/diff_summary.html">diff_summary()</a></code> reports <code>max_rel_diff</code>, and the tolerances are recorded in <code>attr(, "tolerance")</code>.</li>
+<li>
+<code><a href="../reference/diff_report.html">diff_report()</a></code> draws a bounded text report of a comparison: the columns compared, a picture of how the rows of the two tables align, and per measure its match rate and most frequent changes, each with an example key. The layout follows the summary of the Python package diffly.</li>
+<li>
 <code><a href="../reference/diff_summary.html">diff_summary()</a></code> counts each status per measure and measures the size of the differences.</li>
 <li>
-<code><a href="../reference/expect_table_equal.html">expect_table_equal()</a></code> is a testthat expectation built on <code><a href="../reference/diff_table.html">diff_table()</a></code>.</li>
+<code><a href="../reference/expect_table_equal.html">expect_table_equal()</a></code> is a testthat expectation built on <code><a href="../reference/diff_table.html">diff_table()</a></code>. It allows a relative difference of <code>sqrt(.Machine$double.eps)</code> by default, as testthat’s <code>expect_equal()</code> does, where <code><a href="../reference/diff_table.html">diff_table()</a></code> is exact.</li>
 <li>
 <code><a href="../reference/compare_columns.html">compare_columns()</a></code> shows how the columns of two tables line up, <code><a href="../reference/normalize_dt.html">normalize_dt()</a></code> converts other types (factors, timestamps, <code>integer64</code>) to the ones <code><a href="../reference/diff_table.html">diff_table()</a></code> compares, and <code><a href="../reference/cast_rules.html">cast_rules()</a></code> lists the conversions it makes.</li>
 <li>Every error, warning and message has a class, listed under Conditions in <code><a href="../reference/diff_table.html">?diff_table</a></code>.</li>
