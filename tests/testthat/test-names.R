@@ -14,7 +14,7 @@ test_that("every column daffiz creates contains a lowercase letter", {
   # A new internal name without one would silently break that guarantee.
   internal <- c(
     "row_id", "row_id_x", "row_id_y", "row_number", "key_seq", "metric", "value",
-    "value_x", "value_y", "diff", "status", "n_rows", "n_rows_x", "n_rows_y",
+    "value_x", "value_y", "diff", "abs_diff", "rel_diff", "status", "n_rows", "n_rows_x", "n_rows_y",
     "n_na", "n_na_x", "n_na_y", "value_key", "value_key_x", "value_key_y"
   )
   expect_true(all(grepl("[a-z]", internal)))

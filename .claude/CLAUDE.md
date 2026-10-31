@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `daffiz` is a small R package around one function, `diff_table()`, which
-compares two tables value by value, plus a few helpers (`diff_summary()`,
+compares two tables value by value, plus a few helpers (`diff_summary()`, `diff_report()`,
 `expect_table_equal()`, `compare_columns()`, `normalize_dt()`,
 `cast_rules()`).
 
@@ -68,6 +68,7 @@ calls lives in its own file and is tested on its own:
 | `R/keys.R` | `unique_by_key()`, `disambiguate_by_key()`, `aggregate_by_key()` |
 | `R/merge.R` | `merge_dry_run()` (index-only, exact), `merge_dt()` (one-to-one only) |
 | `R/summary.R` | `diff_summary()`, `is_finite_pair()`, `scaled_rmse()` |
+| `R/report.R` | `diff_report()` and its `format()`/`print()` methods: the text report |
 | `R/expect.R` | `expect_table_equal()` |
 | `R/conditions.R` | `daffiz_abort()`, `daffiz_warn()`, `daffiz_inform()`, `fmt_names()` |
 
@@ -78,7 +79,8 @@ The tests in `test-types.R`, `test-cast.R`, `test-columns.R`, `test-melt.R`,
 and the setup between their `test_that()` blocks runs at file level on
 purpose, because later checks reuse it. New tests are ordinary testthat
 (`test-diff-table-modes.R`, `test-names.R`, `test-summary.R`,
-`test-expect.R`).
+`test-expect.R`, `test-report.R`, whose drawings are snapshots in
+`_snaps/report.md`).
 
 ## Load-bearing details
 
@@ -120,6 +122,10 @@ Each is covered by a test.
   value says nothing about whether the row was there.
 - **Equality before tolerance.** `Inf - Inf` is NaN, so a tolerance test alone
   calls two identical infinities a change.
+- **The tolerances apply to finite pairs only.** `rel_tol` times an infinite
+  magnitude is infinite, so without the guard 1 and `Inf` would be `same`.
+  `rel_diff` is relative to the larger magnitude (symmetric in equal mode),
+  scaled before subtracting so `-1e308` vs `1e308` gives 2, not `Inf`.
 - **`nan_is_na` must act in three places**: value cells, the `%a` encoding of
   `"aggregate"`, and double key columns. data.table joins and groups NA and
   NaN as different keys (verified), so skipping the keys splits a row into

@@ -6,10 +6,10 @@
 
 ## Test environments
 
-* local: macOS arm64, R 4.6.1, `R CMD check --as-cran` on the source tarball.
-* GitHub Actions (via the reusable `r-cmd-check.yml` workflow of
-  pedrobtz/r-actions), all with `--as-cran`:
-  * macOS (latest), Windows (latest) and Ubuntu (latest): R release;
+* local: macOS arm64, R 4.5.2, `R CMD check --as-cran` on the source tarball.
+* GitHub Actions (pedrobtz/r-actions `r-cmd-check.yml`), all with `--as-cran`:
+  * macOS, Windows and Ubuntu (latest): R release;
+  * Windows (latest): R-devel;
   * Ubuntu (latest): R oldrel-1;
   * R-hub containers `clang23`, `ubuntu-clang` and `ubuntu-gcc16` (R-devel,
     CRAN's compilers);

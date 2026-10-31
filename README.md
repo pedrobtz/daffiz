@@ -61,18 +61,18 @@ d <- diff_table(benchmark, stored, by = c("id", "region"), measures = "numeric+i
 #>   Units: 1 (10.4 -> 10)
 d
 #> Key: <ID, REGION, metric>
-#>        ID REGION metric row_id_x row_id_y value_x value_y  diff  status
-#>     <int> <char> <char>    <int>    <int>   <num>   <num> <num>  <fctr>
-#>  1:     1  north AMOUNT        1        1     100   100.0   0.0    same
-#>  2:     1  north  UNITS        1        1      10    10.0   0.0    same
-#>  3:     2  south AMOUNT        2        2     200   200.5   0.5 changed
-#>  4:     2  south  UNITS        2        2      20    20.0   0.0    same
-#>  5:     3   east AMOUNT        3        3     300   300.0   0.0    same
-#>  6:     3   east  UNITS        3        3      30    30.0   0.0    same
-#>  7:     4   west AMOUNT        4       NA     400      NA    NA  only_x
-#>  8:     4   west  UNITS        4       NA      40      NA    NA  only_x
-#>  9:     5  north AMOUNT       NA        4      NA   500.0    NA  only_y
-#> 10:     5  north  UNITS       NA        4      NA    50.0    NA  only_y
+#>        ID REGION metric row_id_x row_id_y value_x value_y  diff abs_diff    rel_diff  status
+#>     <int> <char> <char>    <int>    <int>   <num>   <num> <num>    <num>       <num>  <fctr>
+#>  1:     1  north AMOUNT        1        1     100   100.0   0.0      0.0 0.000000000    same
+#>  2:     1  north  UNITS        1        1      10    10.0   0.0      0.0 0.000000000    same
+#>  3:     2  south AMOUNT        2        2     200   200.5   0.5      0.5 0.002493766 changed
+#>  4:     2  south  UNITS        2        2      20    20.0   0.0      0.0 0.000000000    same
+#>  5:     3   east AMOUNT        3        3     300   300.0   0.0      0.0 0.000000000    same
+#>  6:     3   east  UNITS        3        3      30    30.0   0.0      0.0 0.000000000    same
+#>  7:     4   west AMOUNT        4       NA     400      NA    NA       NA          NA  only_x
+#>  8:     4   west  UNITS        4       NA      40      NA    NA       NA          NA  only_x
+#>  9:     5  north AMOUNT       NA        4      NA   500.0    NA       NA          NA  only_y
+#> 10:     5  north  UNITS       NA        4      NA    50.0    NA       NA          NA  only_y
 ```
 
 Reading the result:
@@ -80,7 +80,8 @@ Reading the result:
 - **`status`** is `same`, `changed`, `only_x` (the row is missing from the
   tested table) or `only_y` (the row exists only there).
 - **`row_id_x` and `row_id_y`** are the row numbers in the two inputs.
-- **`diff`** is `value_y - value_x`.
+- **`diff`** is `value_y - value_x`; **`abs_diff`** is its size, and
+  **`rel_diff`** the size relative to the larger of the two values.
 - **Column names are normalized** in both tables: upper case, with other
   characters turned into `_`. That is why `id` and `ID` pair up.
 - **`units` was cast to the benchmark's integer type.** Its `10.4` was
@@ -92,10 +93,89 @@ Reading the result:
 
 ```r
 diff_summary(d)
-#>    metric     n n_same n_changed n_only_x n_only_y max_abs_diff mean_abs_diff      rmse
-#>    <char> <int>  <int>     <int>    <int>    <int>        <num>         <num>     <num>
-#> 1: AMOUNT     5      2         1        1        1          0.5     0.1666667 0.2886751
-#> 2:  UNITS     5      3         0        1        1          0.0     0.0000000 0.0000000
+#>    metric     n n_same n_changed n_only_x n_only_y max_abs_diff mean_abs_diff      rmse max_rel_diff
+#>    <char> <int>  <int>     <int>    <int>    <int>        <num>         <num>     <num>        <num>
+#> 1: AMOUNT     5      2         1        1        1          0.5     0.1666667 0.2886751  0.002493766
+#> 2:  UNITS     5      3         0        1        1          0.0     0.0000000 0.0000000  0.000000000
+```
+
+`diff_report()` draws the whole comparison as text: the columns compared, how
+the rows of the two tables align, and the most frequent changes of each
+measure, each with a key to look it up by:
+
+```r
+diff_report(d, x_name = "benchmark", y_name = "stored")
+#> ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+#> ┃                                       daffiz report                                        ┃
+#> ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+#>    Identity: id, region
+#>    Mode:     benchmark: stored is tested against benchmark
+#>
+#>  Columns
+#>  ▔▔▔▔▔▔▔
+#>    Compared 4 columns: 2 keys, 2 measures.
+#>    Only in stored, dropped: loaded_at.
+#>    Truncated by the cast to benchmark's types:
+#>      Units: 1 value (10.4 -> 10)
+#>
+#>  Rows
+#>  ▔▔▔▔
+#>    benchmark rows               stored rows
+#>          4         (no change)       4
+#>
+#>    ┏━┯━┯━┯━┯━┓
+#>    ┃-│-│-│-│-┃                1 only in benchmark (25.00%)
+#>    ┠─┼─┼─┼─┼─┨╌╌╌┏━┯━┯━┯━┯━┓╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮
+#>    ┃ │ │ │ │ ┃ = ┃ │ │ │ │ ┃  2 same              (66.67%)  │
+#>    ┠─┼─┼─┼─┼─┨╌╌╌┠─┼─┼─┼─┼─┨╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌├╴  3 joined
+#>    ┃ │ │ │ │ ┃ ≠ ┃ │ │ │ │ ┃  1 changed           (33.33%)  │
+#>    ┗━┷━┷━┷━┷━┛╌╌╌┠─┼─┼─┼─┼─┨╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯
+#>                  ┃+│+│+│+│+┃  1 only in stored    (25.00%)
+#>                  ┗━┷━┷━┷━┷━┛
+#>
+#>  Measures
+#>  ▔▔▔▔▔▔▔▔
+#>    ┌─────────┬────────────┬────────────┬──────────────┬──────────────────────────────────────┐
+#>    │ Measure │ Match rate │ Max |diff| │ Max rel diff │ Top changes                          │
+#>    ├─────────┼────────────┼────────────┼──────────────┼──────────────────────────────────────┤
+#>    │ amount  │     66.67% │        0.5 │     0.002494 │ 200 -> 200.5 (1x, e.g. (2, "south")) │
+#>    └─────────┴────────────┴────────────┴──────────────┴──────────────────────────────────────┘
+#>    1 other measure matches on every row found in both tables.
+#>
+#>  Rows only in benchmark
+#>  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+#>    ┌────┬────────┐
+#>    │ id │ region │
+#>    ├────┼────────┤
+#>    │ 4  │ "west" │
+#>    └────┴────────┘
+#>
+#>  Rows only in stored
+#>  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+#>    ┌────┬─────────┐
+#>    │ id │ region  │
+#>    ├────┼─────────┤
+#>    │ 5  │ "north" │
+#>    └────┴─────────┘
+```
+
+A value is `same` when it is within `tolerance` (absolute) or `rel_tol`
+(relative to the larger magnitude). With `rel_tol = 0.01` the half unit on
+200 passes, and only the rows missing from one table remain:
+
+```r
+diff_table(benchmark, stored, by = c("id", "region"), measures = "numeric+integer",
+           rel_tol = 0.01)[status != "same"]
+#> Dropped column(s) of `y` that the benchmark `x` does not have: loaded_at.
+#> Truncated 1 value(s) while casting to the reference types:
+#>   Units: 1 (10.4 -> 10)
+#> Key: <ID, REGION, metric>
+#>       ID REGION metric row_id_x row_id_y value_x value_y  diff abs_diff rel_diff status
+#>    <int> <char> <char>    <int>    <int>   <num>   <num> <num>    <num>    <num> <fctr>
+#> 1:     4   west AMOUNT        4       NA     400      NA    NA       NA       NA only_x
+#> 2:     4   west  UNITS        4       NA      40      NA    NA       NA       NA only_x
+#> 3:     5  north AMOUNT       NA        4      NA     500    NA       NA       NA only_y
+#> 4:     5  north  UNITS       NA        4      NA      50    NA       NA       NA only_y
 ```
 
 ## Comparing two tables as equals
@@ -115,12 +195,12 @@ Row order never matters; rows are aligned on their identity:
 ```r
 diff_table(benchmark, benchmark[c(4, 1, 2, 3), ], mode = "equal")
 #> Key: <ID, REGION, UNITS, metric>
-#>       ID REGION UNITS metric row_id_x row_id_y value_x value_y  diff status
-#>    <int> <char> <int> <char>    <int>    <int>   <num>   <num> <num> <fctr>
-#> 1:     1  north    10 AMOUNT        1        2     100     100     0   same
-#> 2:     2  south    20 AMOUNT        2        3     200     200     0   same
-#> 3:     3   east    30 AMOUNT        3        4     300     300     0   same
-#> 4:     4   west    40 AMOUNT        4        1     400     400     0   same
+#>       ID REGION UNITS metric row_id_x row_id_y value_x value_y  diff abs_diff rel_diff status
+#>    <int> <char> <int> <char>    <int>    <int>   <num>   <num> <num>    <num>    <num> <fctr>
+#> 1:     1  north    10 AMOUNT        1        2     100     100     0        0        0   same
+#> 2:     2  south    20 AMOUNT        2        3     200     200     0        0        0   same
+#> 3:     3   east    30 AMOUNT        3        4     300     300     0        0        0   same
+#> 4:     4   west    40 AMOUNT        4        1     400     400     0        0        0   same
 ```
 
 ## Do they have the same rows?
@@ -151,9 +231,14 @@ Its second argument, `expected`, is the benchmark:
 
 ```r
 test_that("the pipeline reproduces the reference output", {
-  expect_table_equal(run_pipeline(), reference, tolerance = 1e-8)
+  expect_table_equal(run_pipeline(), reference)
 })
 ```
+
+Unlike `diff_table()`, which is exact, it allows a relative difference of
+`sqrt(.Machine$double.eps)` (about `1.5e-8`) by default, as testthat's
+`expect_equal()` does, so floating-point noise does not fail a test. Pass
+`rel_tol = 0` to compare exactly.
 
 A failure shows `diff_summary()` and the first records that differ. A key
 that repeats fails the expectation instead of being paired by arrival order,
