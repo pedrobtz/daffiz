@@ -100,7 +100,7 @@ STATUS_LEVELS <- c("same", "changed", "only_x", "only_y")
 #' question cannot be answered; a warning, that the answer may be wrong; a
 #' message reports an expected consequence of the settings.
 #' * `daffiz_error_input`: an argument is malformed.
-#' * `daffiz_error_columns`: columns missing, unknown, or left uncompared in
+#' * `daffiz_error_columns`: columns missing, unknown, or not compared in
 #'   equal mode; names that are empty or collide once normalized.
 #' * `daffiz_error_types`: a column of a type that cannot be compared, or
 #'   types that differ where nothing is cast.

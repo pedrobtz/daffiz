@@ -202,7 +202,7 @@ question cannot be answered; a warning, that the answer may be wrong; a
 message reports an expected consequence of the settings.
 \itemize{
 \item \code{daffiz_error_input}: an argument is malformed.
-\item \code{daffiz_error_columns}: columns missing, unknown, or left uncompared in
+\item \code{daffiz_error_columns}: columns missing, unknown, or not compared in
 equal mode; names that are empty or collide once normalized.
 \item \code{daffiz_error_types}: a column of a type that cannot be compared, or
 types that differ where nothing is cast.
