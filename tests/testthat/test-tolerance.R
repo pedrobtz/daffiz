@@ -74,3 +74,23 @@ test_that("expect_table_equal passes rel_tol on", {
   expect_success(expect_table_equal(actual, expected, rel_tol = 1e-5))
   expect_failure(expect_table_equal(actual, expected))
 })
+
+test_that("expect_table_equal allows floating-point noise by default, not more", {
+  expected <- data.frame(id = 1:2, v = c(0.3, 1e6))
+  expect_success(expect_table_equal(data.frame(id = 1:2, v = c(0.1 + 0.2, 1e6)), expected))
+  expect_failure(expect_table_equal(data.frame(id = 1:2, v = c(0.1 + 0.2, 1e6)), expected, rel_tol = 0))
+  # 1e-6 relative: real, and caught.
+  expect_failure(expect_table_equal(data.frame(id = 1:2, v = c(0.3, 1e6 + 1)), expected))
+  d <- expect_table_equal(expected, expected)
+  expect_identical(attr(d, "tolerance")$rel, sqrt(.Machine$double.eps))
+})
+
+test_that("expect_table_equal's default steps aside for duplicates = \"aggregate\"", {
+  expected <- data.table(id = c("a", "a"), v = c(1, 2))
+  d <- expect_table_equal(expected[2:1], expected, duplicates = "aggregate")
+  expect_identical(attr(d, "tolerance")$rel, 0)
+  expect_error(
+    expect_table_equal(expected, expected, duplicates = "aggregate", rel_tol = 0.1),
+    class = "daffiz_error_input"
+  )
+})

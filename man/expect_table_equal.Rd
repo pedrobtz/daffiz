@@ -4,7 +4,13 @@
 \alias{expect_table_equal}
 \title{Expect a table to match another}
 \usage{
-expect_table_equal(object, expected, ..., max_rows = 10L)
+expect_table_equal(
+  object,
+  expected,
+  ...,
+  rel_tol = sqrt(.Machine$double.eps),
+  max_rows = 10L
+)
 }
 \arguments{
 \item{object}{The table under test.}
@@ -13,6 +19,10 @@ expect_table_equal(object, expected, ..., max_rows = 10L)
 
 \item{...}{Passed to \code{\link[=diff_table]{diff_table()}}: \code{mode}, \code{by}, \code{measures},
 \code{tolerance}, \code{duplicates} and so on.}
+
+\item{rel_tol}{The largest relative difference still counted as \code{same},
+as in \code{\link[=diff_table]{diff_table()}}. With \code{duplicates = "aggregate"}, which compares
+exactly, it defaults to 0.}
 
 \item{max_rows}{The most records that differ shown in a failure.}
 }
@@ -29,6 +39,13 @@ and its extra columns are dropped. Pass \code{mode = "equal"} to compare the two
 as peers instead.
 }
 \details{
+Unlike \code{\link[=diff_table]{diff_table()}}, which is exact by default, the expectation allows a
+relative difference of \code{sqrt(.Machine$double.eps)} (about \code{1.5e-8}), the
+default of testthat's \code{expect_equal()}: a value computed again rarely
+agrees with its stored copy to the last bit (\code{0.1 + 0.2} is not \code{0.3}), and
+a test should not fail on that. It is still far below any difference a
+person would call real. Pass \code{rel_tol = 0} for an exact comparison.
+
 Duplicate keys fail the expectation rather than being paired: pairing rows
 by arrival order is an assumption, and an assertion should not rest on one.
 The exception is a comparison with no measures, where the repeated rows are

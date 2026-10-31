@@ -46,6 +46,8 @@ First release.
 * `diff_summary()` counts each status per measure and measures the size of
   the differences.
 * `expect_table_equal()` is a testthat expectation built on `diff_table()`.
+  It allows a relative difference of `sqrt(.Machine$double.eps)` by default,
+  as testthat's `expect_equal()` does, where `diff_table()` is exact.
 * `compare_columns()` shows how the columns of two tables line up,
   `normalize_dt()` converts other types (factors, timestamps, `integer64`)
   to the ones `diff_table()` compares, and `cast_rules()` lists the

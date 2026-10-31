@@ -231,9 +231,14 @@ Its second argument, `expected`, is the benchmark:
 
 ```r
 test_that("the pipeline reproduces the reference output", {
-  expect_table_equal(run_pipeline(), reference, tolerance = 1e-8)
+  expect_table_equal(run_pipeline(), reference)
 })
 ```
+
+Unlike `diff_table()`, which is exact, it allows a relative difference of
+`sqrt(.Machine$double.eps)` (about `1.5e-8`) by default, as testthat's
+`expect_equal()` does, so floating-point noise does not fail a test. Pass
+`rel_tol = 0` to compare exactly.
 
 A failure shows `diff_summary()` and the first records that differ. A key
 that repeats fails the expectation instead of being paired by arrival order,
