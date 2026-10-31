@@ -25,7 +25,7 @@ someone asks.
 | Projected-size warning (`options(daffiz.max_cells)`) | `R/compare-dt.R` `warn_projected_size()` | Not in the core | `merge_dry_run()` gives exact row counts cheaply; multiply by the number of measures, in doubles | M |
 | Batching by measure (`batch=`) | `R/batching.R` | An optimisation, not a feature; re-benchmark on the new pipeline first | Loop `melt → merge → classify` over groups of measures, then `rbindlist()` | L |
 | Lossless type widening in `mode = "equal"` (integer ↔ double compared as double) | The draft promoted integer measures (`R/compare-dt.R`) | `"equal"` mode requires identical types, since it has no source of truth to cast to | Widen both sides to double for the integer/numeric pair only; never narrow | M |
-| Report labels (`x_name`/`y_name`) | `capture_label()` | No report to label yet | Needed together with `print`/`summary` | L |
+| Report labels (`x_name`/`y_name`) | `capture_label()` | No report to label yet | Arguments of `diff_report()`; not captured from the call, since the report sees only the result | done |
 
 ## Duplicate keys
 
@@ -52,7 +52,7 @@ stored snapshots or settings is gone for now.
 | `all_cells()`, `diff_cells()` | `R/accessors-cells.R` | The table *is* all cells; `d[status != "same"]` gives the rest | — |
 | `is_matching()` | `R/comparison.R` | `all(d$status == "same")`, plus "no duplicate groups dropped" if `"report"` returns | M |
 | `key_profile()` | `R/key-profile.R` | Profile the identity columns of the `only_x`/`only_y` rows | L |
-| `summary()`, `print()`, `format()` methods with bounded sections | `R/report.R`, `R/comparison.R` | Needs a class on the result. Keep the lesson from the draft: summarise only the affected rows on the print path (`affected_row_summary()`) | M |
+| `summary()`, `print()`, `format()` methods with bounded sections | `R/report.R`, `R/comparison.R` | Re-added as `diff_report()` (`R/report.R`), a `daffiz_report` object with `format()`/`print()`, laid out after the summary of the Python package diffly. The result stays a plain `data.table`, so the report is asked for, not printed by default. Still open: a JSON/list export, and using the report in `expect_table_equal()`'s failure text | done |
 | `all.equal.daffiz_comparison()` | `R/comparison.R` | It existed only because of the cache environment; not needed without one | — |
 | Structured conditions for every gate (`daffiz_error_input/columns/roles/types/tolerance/duplicates/disjoint/batch`, `daffiz_warning_*`) | `R/conditions.R` + call sites | `conditions.R` is kept; every condition in 0.1.0 has a `daffiz_*` class | H |
 

@@ -33,6 +33,10 @@ First release.
 * `nan_is_na = TRUE` treats NaN as NA, in values and in key columns alike.
 * A comparison in which no row aligns is an error, not a report of two
   unrelated tables.
+* `diff_report()` draws a bounded text report of a comparison: the columns
+  compared, a picture of how the rows of the two tables align, and per
+  measure its match rate and most frequent changes, each with an example
+  key. The layout follows the summary of the Python package diffly.
 * `diff_summary()` counts each status per measure and measures the size of
   the differences.
 * `expect_table_equal()` is a testthat expectation built on `diff_table()`.

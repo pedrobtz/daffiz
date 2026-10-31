@@ -24,11 +24,8 @@
 #' y <- data.frame(id = 1:3, amount = c(10, 25, 27), rate = c(1, 1, 1))
 #' diff_summary(diff_table(x, y))
 diff_summary <- function(d) {
+  check_diff_result(d)
   shape <- attr(d, "shape")
-  if (!is.data.table(d) || is.null(shape) || !"status" %in% names(d)) {
-    daffiz_abort("daffiz_error_input", "`d` must be a result of diff_table()")
-  }
-
   grp <- intersect("metric", names(d))
   counts <- d[, .(
     n = .N,
@@ -58,6 +55,13 @@ diff_summary <- function(d) {
     counts <- counts[order(match(metric, order_of))]
   }
   counts[]
+}
+
+check_diff_result <- function(d) {
+  if (!is.data.table(d) || is.null(attr(d, "shape")) || !"status" %in% names(d)) {
+    daffiz_abort("daffiz_error_input", "`d` must be a result of diff_table()")
+  }
+  invisible(d)
 }
 
 # A value contributes to the magnitudes when both *source values* are finite.
